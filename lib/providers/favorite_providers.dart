@@ -9,51 +9,41 @@ final favoriteRepositoryProvider = Provider<FavoriteRepository>((ref) {
   return FavoriteRepository();
 });
 
-// 즐겨찾기 목록 Provider
-final favoritesProvider = FutureProvider<List<Favorite>>((ref) async {
-  final deviceId = await ref.watch(deviceIdProvider.future);
-  final repository = ref.read(favoriteRepositoryProvider);
-  
-  try {
-    final result = await repository.getFavorites(deviceId: deviceId);
-    return result.content;
-  } catch (e) {
-    debugPrint('즐겨찾기 목록 로드 실패: $e');
-    return [];
+// 즐겨찾기 목록 + 캐시 관리 Notifier
+final favoritesProvider =
+    AsyncNotifierProvider<FavoritesNotifier, List<Favorite>>(
+  FavoritesNotifier.new,
+);
+
+class FavoritesNotifier extends AsyncNotifier<List<Favorite>> {
+  @override
+  Future<List<Favorite>> build() async {
+    final deviceId = await ref.watch(deviceIdProvider.future);
+    final repository = ref.read(favoriteRepositoryProvider);
+    try {
+      final result = await repository.getFavorites(
+        deviceId: deviceId,
+        size: 1000,
+      );
+      return result.content;
+    } catch (e) {
+      debugPrint('즐겨찾기 목록 로드 실패: $e');
+      return [];
+    }
   }
-});
 
-// 특정 유치원의 즐겨찾기 여부 Provider
-final isFavoriteProvider = FutureProvider.family<bool, String>((ref, centerId) async {
-  final favorites = await ref.watch(favoritesProvider.future);
-  return favorites.any((favorite) => favorite.centerId == centerId);
-});
-
-// 즐겨찾기 액션 Provider
-final favoriteActionProvider = Provider((ref) {
-  return FavoriteActions(ref);
-});
-
-class FavoriteActions {
-  final Ref ref;
-  
-  FavoriteActions(this.ref);
-
-  /// 즐겨찾기 추가
-  Future<bool> addFavorite(String centerId) async {
+  /// 즐겨찾기 추가 (낙관적 업데이트)
+  Future<bool> add(String centerId) async {
     try {
       final deviceId = await ref.read(deviceIdProvider.future);
       final repository = ref.read(favoriteRepositoryProvider);
-      
-      await repository.addFavorite(
+      final favorite = await repository.addFavorite(
         deviceId: deviceId,
         centerId: centerId,
       );
-      
-      // 즐겨찾기 목록 새로고침
-      ref.invalidate(favoritesProvider);
-      ref.invalidate(isFavoriteProvider(centerId));
-      
+      // 로컬 캐시에 바로 추가
+      final current = state.valueOrNull ?? [];
+      state = AsyncData([favorite, ...current]);
       return true;
     } catch (e) {
       debugPrint('즐겨찾기 추가 실패: $e');
@@ -61,57 +51,49 @@ class FavoriteActions {
     }
   }
 
-  /// 즐겨찾기 제거
-  Future<bool> removeFavorite(String centerId) async {
+  /// 즐겨찾기 제거 (낙관적 업데이트)
+  Future<bool> remove(String centerId) async {
+    final current = state.valueOrNull ?? [];
+    final target = current.cast<Favorite?>().firstWhere(
+          (f) => f?.centerId == centerId,
+          orElse: () => null,
+        );
+    if (target == null) return false;
+
+    // 로컬 캐시에서 먼저 제거 (빠른 UI 반영)
+    state = AsyncData(current.where((f) => f.centerId != centerId).toList());
+
     try {
       final deviceId = await ref.read(deviceIdProvider.future);
       final repository = ref.read(favoriteRepositoryProvider);
-      
-      // 즐겨찾기 ID 찾기
-      final favoriteId = await repository.getFavoriteId(
+      await repository.removeFavorite(
+        favoriteId: target.id,
         deviceId: deviceId,
-        centerId: centerId,
       );
-      
-      if (favoriteId != null) {
-        await repository.removeFavorite(
-          favoriteId: favoriteId,
-          deviceId: deviceId,
-        );
-        
-        // 즐겨찾기 목록 새로고침
-        ref.invalidate(favoritesProvider);
-        ref.invalidate(isFavoriteProvider(centerId));
-        
-        return true;
-      }
-      
-      return false;
+      return true;
     } catch (e) {
       debugPrint('즐겨찾기 제거 실패: $e');
+      // 실패 시 롤백
+      state = AsyncData(current);
       return false;
     }
   }
 
-  /// 즐겨찾기 토글 (추가/제거)
-  Future<bool> toggleFavorite(String centerId) async {
-    try {
-      final isFav = await ref.read(isFavoriteProvider(centerId).future);
-      
-      if (isFav) {
-        return await removeFavorite(centerId);
-      } else {
-        return await addFavorite(centerId);
-      }
-    } catch (e) {
-      debugPrint('즐겨찾기 토글 실패: $e');
-      return false;
-    }
+  /// 즐겨찾기 토글
+  Future<bool> toggle(String centerId) async {
+    final current = state.valueOrNull ?? [];
+    final isFav = current.any((f) => f.centerId == centerId);
+    return isFav ? remove(centerId) : add(centerId);
   }
 }
 
+// 특정 유치원의 즐겨찾기 여부 (동기적으로 캐시에서 확인)
+final isFavoriteProvider = Provider.family<bool, String>((ref, centerId) {
+  final favorites = ref.watch(favoritesProvider).valueOrNull ?? [];
+  return favorites.any((f) => f.centerId == centerId);
+});
+
 // 즐겨찾기 토글을 위한 간편 함수
 Future<void> toggleFavorite(WidgetRef ref, String centerId) async {
-  final actions = ref.read(favoriteActionProvider);
-  await actions.toggleFavorite(centerId);
+  await ref.read(favoritesProvider.notifier).toggle(centerId);
 }

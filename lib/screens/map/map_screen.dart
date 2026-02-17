@@ -8,9 +8,12 @@ import '../../core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/establish_type_helper.dart';
 import '../../providers/location_providers.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../models/map_marker.dart';
+import '../../models/kindergarten_search.dart';
+import '../../widgets/badge_chip.dart';
 import 'widgets/marker_bottom_sheet.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -22,23 +25,37 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   KakaoMapController? _mapController;
-  String? _selectedFilterType; // null = 전체
   Timer? _cameraDebounceTimer;
+  String _currentAddress = '';
+  bool _showList = false;
 
-  // 카카오맵 CustomOverlay 목록 (색상 마커용)
   List<CustomOverlay> _overlays = [];
-  // overlayId → MapMarker 매핑 (오버레이 탭 시 데이터 조회용)
   final Map<String, MapMarker> _markerDataMap = {};
-  // 선택된 마커 (바텀시트 표시용, ValueNotifier로 KakaoMap 재빌드 방지)
   final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
+  String? _selectedMarkerId;
 
-  // 기본 카메라 위치 (서울 시청)
+  // 텍스트 검색 관련
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  Timer? _searchDebounceTimer;
+  List<KindergartenSearch> _searchResults = [];
+  bool _isSearchMode = false;
+  bool _isSearchLoading = false;
+  LatLng? _lastMapCenter;
+
   static final LatLng _defaultCenter = LatLng(37.5666805, 126.9784147);
 
-  /// 설립유형 색상으로 핀 SVG HTML을 생성
-  static String _buildOverlayContent(String hexColor) {
+  static String _buildOverlayContent(String hexColor, {bool selected = false}) {
+    if (selected) {
+      return '<div style="cursor:pointer;line-height:0;">'
+          '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="60" viewBox="0 0 36 46">'
+          '<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28C36 8.06 27.94 0 18 0z" fill="#$hexColor"/>'
+          '<circle cx="18" cy="18" r="8" fill="white"/>'
+          '</svg>'
+          '</div>';
+    }
     return '<div style="cursor:pointer;line-height:0;">'
-        '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">'
+        '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 36 46">'
         '<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28C36 8.06 27.94 0 18 0z" fill="#$hexColor"/>'
         '<circle cx="18" cy="18" r="8" fill="white"/>'
         '</svg>'
@@ -48,6 +65,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void dispose() {
     _cameraDebounceTimer?.cancel();
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _selectedMarkerNotifier.dispose();
     super.dispose();
   }
@@ -58,10 +78,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (position != null && _mapController != null) {
         _moveToPosition(position);
         _loadMarkers(position.latitude, position.longitude);
+        _updateAddress(position.latitude, position.longitude);
       }
     } catch (e) {
-      // 위치 권한 없어도 기본 위치에서 마커 로드
       _loadMarkers(_defaultCenter.latitude, _defaultCenter.longitude);
+      _updateAddress(_defaultCenter.latitude, _defaultCenter.longitude);
+    }
+  }
+
+  Future<void> _updateAddress(double lat, double lng) async {
+    final service = ref.read(locationServiceProvider);
+    final placemarks = await service.getAddressFromLocation(lat, lng);
+    if (placemarks.isEmpty) return;
+    final place = placemarks.first;
+    final area = place.administrativeArea ?? '';
+    final sub = place.subLocality?.isNotEmpty == true
+        ? place.subLocality!
+        : place.locality ?? '';
+    final address = sub.isNotEmpty ? '$area $sub' : area;
+    if (mounted && address.isNotEmpty) {
+      setState(() => _currentAddress = address);
     }
   }
 
@@ -73,61 +109,71 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         lat: lat,
         lng: lng,
         radiusKm: AppConstants.defaultRadius,
-        type: _selectedFilterType,
+        type: null,
       )).future);
 
-      // 디버그: API에서 내려오는 실제 establishType 값 확인
-      if (markersData.isNotEmpty) {
-        final types = markersData.map((m) => m.establishType).toSet();
-        debugPrint('📍 마커 데이터 establishType 종류: $types (필터: $_selectedFilterType)');
-      }
-
-      // 클라이언트 사이드 필터링 (백엔드 미지원 대비)
-      final filtered = _selectedFilterType != null
-          ? markersData
-              .where((m) => m.establishType.contains(_selectedFilterType!))
-              .toList()
-          : markersData;
-      debugPrint('📍 전체: ${markersData.length}개, 필터 후: ${filtered.length}개');
-
-      final newOverlays = <CustomOverlay>[];
       final newDataMap = <String, MapMarker>{};
-
-      // 프라이머리 색상 (3549FF) 고정
-      const primaryHex = '3549FF';
-
-      for (final markerData in filtered) {
-        final overlay = CustomOverlay(
-          customOverlayId: markerData.id,
-          latLng: LatLng(markerData.lat, markerData.lng),
-          content: _buildOverlayContent(primaryHex),
-          xAnchor: 0.5,
-          yAnchor: 1.0,
-        );
-        newOverlays.add(overlay);
+      for (final markerData in markersData) {
         newDataMap[markerData.id] = markerData;
       }
 
       setState(() {
-        _overlays = newOverlays;
         _markerDataMap
           ..clear()
           ..addAll(newDataMap);
+        _rebuildOverlays();
       });
     } catch (e) {
       debugPrint('마커 로드 실패: $e');
     }
   }
 
-  void _onOverlayTapped(String customOverlayId, LatLng latLng) {
-    final markerData = _markerDataMap[customOverlayId];
-    if (markerData != null) {
-      _selectedMarkerNotifier.value = markerData;
+  void _rebuildOverlays() {
+    const primaryHex = '3549FF';
+    _overlays = _markerDataMap.values.map((m) {
+      final isSelected = m.id == _selectedMarkerId;
+      return CustomOverlay(
+        customOverlayId: m.id,
+        latLng: LatLng(m.lat, m.lng),
+        content: _buildOverlayContent(primaryHex, selected: isSelected),
+        xAnchor: 0.5,
+        yAnchor: 1.0,
+      );
+    }).toList();
+  }
+
+  void _selectMarker(String? markerId) {
+    final previousId = _selectedMarkerId;
+    _selectedMarkerId = markerId;
+    if (markerId != null) {
+      _selectedMarkerNotifier.value = _markerDataMap[markerId];
+    } else {
+      _selectedMarkerNotifier.value = null;
     }
+
+    // 변경된 마커만 강제 제거 후 재추가 (플러그인이 동일 ID content 변경을 무시하므로)
+    final idsToRefresh = <String>[
+      if (previousId != null) previousId,
+      if (markerId != null && markerId != previousId) markerId,
+    ];
+    if (_mapController != null && idsToRefresh.isNotEmpty) {
+      // 해당 ID들만 제거 (빈 리스트로 clear하면 전부 지워짐)
+      final keepIds = _markerDataMap.keys
+          .where((id) => !idsToRefresh.contains(id))
+          .toList();
+      _mapController!.clearCustomOverlay(overlayIds: keepIds);
+    }
+
+    setState(() => _rebuildOverlays());
+  }
+
+  void _onOverlayTapped(String customOverlayId, LatLng latLng) {
+    _selectMarker(customOverlayId);
+    setState(() => _showList = false);
   }
 
   void _closeBottomSheet() {
-    _selectedMarkerNotifier.value = null;
+    _selectMarker(null);
   }
 
   Future<void> _moveToPosition(Position position) async {
@@ -143,6 +189,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (position != null) {
         _moveToPosition(position);
         _loadMarkers(position.latitude, position.longitude);
+        _updateAddress(position.latitude, position.longitude);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -159,17 +206,225 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  void _applyFilter(String? type) {
+  void _onSearchChanged(String query) {
+    _searchDebounceTimer?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearchMode = false;
+        _isSearchLoading = false;
+      });
+      return;
+    }
     setState(() {
-      _selectedFilterType = type;
+      _isSearchMode = true;
+      _isSearchLoading = true;
     });
-    _reloadMarkersAtCurrentPosition();
+    _searchDebounceTimer = Timer(
+      const Duration(milliseconds: 400),
+      () => _performSearch(query.trim()),
+    );
   }
 
-  Future<void> _reloadMarkersAtCurrentPosition() async {
-    if (_mapController == null) return;
-    final center = await _mapController!.getCenter();
-    _loadMarkers(center.latitude, center.longitude);
+  Future<void> _performSearch(String query) async {
+    try {
+      final repository = ref.read(kindergartenRepositoryProvider);
+      final result = await repository.searchKindergartens(
+        q: query,
+        lat: _lastMapCenter?.latitude,
+        lng: _lastMapCenter?.longitude,
+        sort: 'distance',
+        size: 20,
+      );
+      if (mounted) {
+        setState(() {
+          _searchResults = result.content;
+          _isSearchLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+          _isSearchLoading = false;
+        });
+      }
+    }
+  }
+
+  void _exitSearchMode() {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _isSearchMode = false;
+      _searchResults = [];
+      _showList = false;
+    });
+  }
+
+  void _focusSearchResult(KindergartenSearch item) async {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _isSearchMode = false;
+      _searchResults = [];
+      _showList = false;
+    });
+    if (_mapController != null) {
+      await _mapController!.panTo(LatLng(item.lat, item.lng));
+    }
+    _loadMarkers(item.lat, item.lng);
+    _updateAddress(item.lat, item.lng);
+  }
+
+  void _focusMarker(MapMarker marker) async {
+    setState(() => _showList = false);
+    _selectMarker(marker.id);
+    if (_mapController != null) {
+      await _mapController!.panTo(LatLng(marker.lat, marker.lng));
+    }
+  }
+
+  Widget _buildSearchResultsList() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              Text('검색 결과', style: AppTextStyles.headline6),
+              if (!_isSearchLoading) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '${_searchResults.length}개',
+                  style: AppTextStyles.body2.copyWith(color: AppColors.primary),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _isSearchLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _searchResults.isEmpty
+                  ? Center(
+                      child: Text(
+                        _searchController.text.isEmpty
+                            ? '유치원 이름을 입력하세요'
+                            : '검색 결과가 없습니다',
+                        style: AppTextStyles.body2.copyWith(color: AppColors.gray500),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                      itemBuilder: (context, index) {
+                        final item = _searchResults[index];
+                        final typeColor = EstablishTypeHelper.getColor(item.establishType);
+                        return ListTile(
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: typeColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              EstablishTypeHelper.getIcon(item.establishType),
+                              color: typeColor,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            item.name,
+                            style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            item.address,
+                            style: AppTextStyles.caption.copyWith(color: AppColors.gray500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.chevron_right, color: AppColors.gray400),
+                          onTap: () => _focusSearchResult(item),
+                          onLongPress: () => context.push('/detail/${item.id}'),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNearbyMarkersList(List<MapMarker> markers) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            children: [
+              Text('주변 유치원', style: AppTextStyles.headline6),
+              const SizedBox(width: 8),
+              Text(
+                '${markers.length}개',
+                style: AppTextStyles.body2.copyWith(color: AppColors.primary),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: markers.isEmpty
+              ? Center(
+                  child: Text(
+                    '주변에 유치원이 없습니다',
+                    style: AppTextStyles.body2.copyWith(color: AppColors.gray500),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: markers.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                  itemBuilder: (context, index) {
+                    final marker = markers[index];
+                    final typeColor = EstablishTypeHelper.getColor(marker.establishType);
+                    return ListTile(
+                      leading: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: typeColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          EstablishTypeHelper.getIcon(marker.establishType),
+                          color: typeColor,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        marker.name,
+                        style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: BadgeChip.establishType(
+                        label: marker.establishType,
+                        establishType: marker.establishType,
+                      ),
+                      trailing: const Icon(Icons.chevron_right, color: AppColors.gray400),
+                      onTap: () => _focusMarker(marker),
+                      onLongPress: () => context.push('/detail/${marker.id}'),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -207,22 +462,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       error: (_, __) => _defaultCenter,
     );
 
+    final markers = _markerDataMap.values.toList();
+    final searchBarTop = MediaQuery.of(context).padding.top + 8;
+    const searchBarHeight = 48.0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('지도'),
-        actions: [
-          PopupMenuButton<String?>(
-            icon: const Icon(Icons.filter_list),
-            onSelected: (type) => _applyFilter(type),
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: null, child: Text('전체')),
-              const PopupMenuItem(value: '국공립', child: Text('국공립')),
-              const PopupMenuItem(value: '사립', child: Text('사립')),
-              const PopupMenuItem(value: '법인', child: Text('법인')),
-            ],
-          ),
-        ],
-      ),
       body: Stack(
         children: [
           // 지도
@@ -236,124 +480,223 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             },
             onCustomOverlayTap: _onOverlayTapped,
             onCameraIdle: (LatLng latLng, int zoomLevel) {
+              _lastMapCenter = latLng;
               _cameraDebounceTimer?.cancel();
               _cameraDebounceTimer = Timer(
                 AppConstants.mapCameraDebounceTime,
-                () => _loadMarkers(latLng.latitude, latLng.longitude),
+                () {
+                  _loadMarkers(latLng.latitude, latLng.longitude);
+                  _updateAddress(latLng.latitude, latLng.longitude);
+                },
               );
             },
           ),
 
-          // 현위치 이동 FAB
-          Positioned(
-            bottom: 100,
-            right: 16,
-            child: FloatingActionButton(
-              heroTag: 'location',
-              onPressed: _moveToCurrentLocation,
-              backgroundColor: AppColors.surface,
-              foregroundColor: AppColors.primary,
-              child: const Icon(Icons.my_location),
+          // 줌 컨트롤 + 현위치 FAB
+          if (!_showList)
+            Positioned(
+              top: searchBarTop + searchBarHeight + 16,
+              right: 16,
+              child: Column(
+                children: [
+                  _ZoomButton(
+                    icon: Icons.add,
+                    onTap: () async {
+                      if (_mapController == null) return;
+                      final level = await _mapController!.getLevel();
+                      _mapController!.setLevel(level - 1);
+                    },
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                  ),
+                  Container(height: 1, width: 36, color: AppColors.gray200),
+                  _ZoomButton(
+                    icon: Icons.remove,
+                    onTap: () async {
+                      if (_mapController == null) return;
+                      final level = await _mapController!.getLevel();
+                      _mapController!.setLevel(level + 1);
+                    },
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                  ),
+                ],
+              ),
             ),
-          ),
+          if (!_showList)
+            Positioned(
+              bottom: 100,
+              right: 16,
+              child: FloatingActionButton(
+                heroTag: 'location',
+                onPressed: _moveToCurrentLocation,
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.primary,
+                child: const Icon(Icons.my_location),
+              ),
+            ),
 
-          // 설립유형 필터 칩들 (상단 오버레이)
+          // 검색바
           Positioned(
-            top: 16,
+            top: searchBarTop,
             left: 16,
             right: 16,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    _FilterChip(
-                      label: '전체',
-                      isSelected: _selectedFilterType == null,
-                      color: AppColors.primary,
-                      onSelected: () => _applyFilter(null),
+            child: Container(
+              height: searchBarHeight,
+              padding: const EdgeInsets.only(left: 16, right: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isSearchMode ? Icons.search : Icons.location_on,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: InputDecoration(
+                        hintText: _currentAddress.isNotEmpty
+                            ? _currentAddress
+                            : '유치원 이름 또는 주소로 검색',
+                        hintStyle: AppTextStyles.body2.copyWith(
+                          color: AppColors.gray500,
+                          height: 1.0,
+                        ),
+                        border: InputBorder.none,
+                        isCollapsed: true,
+                      ),
+                      style: AppTextStyles.body2.copyWith(height: 1.0),
+                      onChanged: (value) {
+                        _onSearchChanged(value);
+                        if (value.isNotEmpty && !_showList) {
+                          setState(() {
+                            _showList = true;
+                            _selectedMarkerNotifier.value = null;
+                          });
+                        }
+                      },
+                      onTap: () {
+                        if (!_showList) {
+                          setState(() {
+                            _showList = true;
+                            _selectedMarkerNotifier.value = null;
+                          });
+                        }
+                      },
                     ),
-                    _FilterChip(
-                      label: '국공립',
-                      isSelected: _selectedFilterType == '국공립',
-                      color: AppColors.publicType,
-                      onSelected: () => _applyFilter('국공립'),
+                  ),
+                  if (_isSearchMode || _showList)
+                    GestureDetector(
+                      onTap: _exitSearchMode,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.close, color: AppColors.gray500, size: 20),
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _showList = !_showList;
+                        _selectedMarkerNotifier.value = null;
+                      }),
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.keyboard_arrow_down, color: AppColors.gray500, size: 20),
+                      ),
                     ),
-                    _FilterChip(
-                      label: '사립',
-                      isSelected: _selectedFilterType == '사립',
-                      color: AppColors.privateType,
-                      onSelected: () => _applyFilter('사립'),
-                    ),
-                    _FilterChip(
-                      label: '법인',
-                      isSelected: _selectedFilterType == '법인',
-                      color: AppColors.corporationType,
-                      onSelected: () => _applyFilter('법인'),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
 
-          // 마커 선택 시 바텀시트 (ValueNotifier로 KakaoMap 재빌드 없이 표시)
-          ValueListenableBuilder<MapMarker?>(
-            valueListenable: _selectedMarkerNotifier,
-            builder: (context, selectedMarker, _) {
-              if (selectedMarker == null) {
-                return const SizedBox.shrink();
-              }
-              return Align(
-                alignment: Alignment.bottomCenter,
-                child: Material(
-                  elevation: 8,
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16)),
-                  child: MarkerBottomSheet(
-                    kindergarten: selectedMarker,
-                    onClose: _closeBottomSheet,
-                    onDetailPressed: () {
-                      _closeBottomSheet();
-                      context.push('/detail/${selectedMarker.id}');
-                    },
-                  ),
+          // 유치원 목록 패널
+          if (_showList)
+            Positioned(
+              top: searchBarTop + searchBarHeight + 8,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                 ),
-              );
-            },
-          ),
+                child: _isSearchMode
+                    ? _buildSearchResultsList()
+                    : _buildNearbyMarkersList(markers),
+              ),
+            ),
+
+          // 마커 선택 시 바텀시트
+          if (!_showList)
+            ValueListenableBuilder<MapMarker?>(
+              valueListenable: _selectedMarkerNotifier,
+              builder: (context, selectedMarker, _) {
+                if (selectedMarker == null) {
+                  return const SizedBox.shrink();
+                }
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Material(
+                    elevation: 8,
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16)),
+                    child: MarkerBottomSheet(
+                      kindergarten: selectedMarker,
+                      onClose: _closeBottomSheet,
+                      onDetailPressed: () {
+                        _closeBottomSheet();
+                        context.push('/detail/${selectedMarker.id}');
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final Color color;
-  final VoidCallback onSelected;
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final BorderRadius borderRadius;
 
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.color,
-    required this.onSelected,
+  const _ZoomButton({
+    required this.icon,
+    required this.onTap,
+    required this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      labelStyle: AppTextStyles.chipText.copyWith(
-        color: isSelected ? Colors.white : color,
+    return Material(
+      color: Colors.white,
+      borderRadius: borderRadius,
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, size: 20, color: AppColors.gray600),
+        ),
       ),
-      selected: isSelected,
-      selectedColor: color,
-      backgroundColor: color.withValues(alpha: 0.1),
-      side: BorderSide(color: color),
-      onSelected: (_) => onSelected(),
     );
   }
 }

@@ -102,7 +102,7 @@ GoRouter + `StatefulShellRoute.indexedStack`로 하단 탭 네비게이션 구�
 
 ## Server / API
 
-- 백엔드: **kindergarten** 프로젝트 (별도 리포지토리)
+- 백엔드: **kindergarten** 프로젝트 (`~/kids/kindergarten`, 별도 리포지토리)
 - Base URL: `http://localhost:1025` (개발), Android 에뮬레이터는 `http://10.0.2.2:1025`
 - API Path: `/api/app`
 - 인증: 없음 (앱 API), 기기 식별은 `deviceId` (UUID)

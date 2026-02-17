@@ -52,39 +52,28 @@ class DetailScreen extends ConsumerWidget {
                     ),
                     Consumer(
                       builder: (context, ref, _) {
-                        final isFavoriteAsync = ref.watch(isFavoriteProvider(id));
+                        final isFavorite = ref.watch(isFavoriteProvider(id));
 
-                        return isFavoriteAsync.when(
-                          data: (isFavorite) => IconButton(
-                            icon: Icon(
-                              isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: isFavorite ? AppColors.favoriteActive : Colors.white,
-                            ),
-                            onPressed: () async {
-                              final actions = ref.read(favoriteActionProvider);
-                              final success = await actions.toggleFavorite(id);
+                        return IconButton(
+                          icon: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            color: isFavorite ? AppColors.favoriteActive : Colors.white,
+                          ),
+                          onPressed: () async {
+                            final success = await ref.read(favoritesProvider.notifier).toggle(id);
 
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      success
-                                          ? (isFavorite ? '즐겨찾기에서 제거되었습니다' : '즐겨찾기에 추가되었습니다')
-                                          : '즐겨찾기 처리에 실패했습니다',
-                                    ),
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    success
+                                        ? (isFavorite ? '즐겨찾기에서 제거되었습니다' : '즐겨찾기에 추가되었습니다')
+                                        : '즐겨찾기 처리에 실패했습니다',
                                   ),
-                                );
-                              }
-                            },
-                          ),
-                          loading: () => const IconButton(
-                            onPressed: null,
-                            icon: Icon(Icons.favorite_border, color: Colors.white70),
-                          ),
-                          error: (_, __) => const IconButton(
-                            onPressed: null,
-                            icon: Icon(Icons.favorite_border, color: Colors.white70),
-                          ),
+                                ),
+                              );
+                            }
+                          },
                         );
                       },
                     ),

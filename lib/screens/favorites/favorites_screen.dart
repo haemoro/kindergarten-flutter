@@ -293,8 +293,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Future<void> _deleteFavorite(String centerId) async {
-    final actions = ref.read(favoriteActionProvider);
-    final success = await actions.removeFavorite(centerId);
+    final success = await ref.read(favoritesProvider.notifier).remove(centerId);
 
     if (!mounted) return;
     if (success) {

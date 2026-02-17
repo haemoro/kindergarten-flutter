@@ -1,19 +1,21 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/constants/app_constants.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../providers/favorite_providers.dart';
 import '../../providers/location_providers.dart';
+import '../../providers/region_providers.dart';
+import '../../models/search_filter.dart';
+import '../../models/region.dart';
 import '../../widgets/kindergarten_list_tile.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/staggered_animation.dart';
-import 'widgets/search_bar.dart';
-import 'widgets/filter_chips.dart';
-import 'widgets/region_selector.dart';
 import '../../widgets/shimmer_loading.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -26,6 +28,8 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen>
     with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounceTimer;
   AnimationController? _staggerController;
   int _previousItemCount = 0;
 
@@ -34,12 +38,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     super.initState();
     _requestLocationPermission();
     _scrollController.addListener(_onScroll);
+
+    final initialFilter = ref.read(searchFilterProvider);
+    if (initialFilter.q != null) {
+      _searchController.text = initialFilter.q!;
+    }
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
+    _debounceTimer?.cancel();
     _staggerController?.dispose();
     super.dispose();
   }
@@ -67,15 +78,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
     if (permission == LocationPermission.denied) {
       final newPermission = await ref.read(
-        requestLocationPermissionProvider(null).future
+        requestLocationPermissionProvider(null).future,
       );
-
       if (newPermission == LocationPermission.whileInUse ||
           newPermission == LocationPermission.always) {
         _updateLocationInFilter();
       }
     } else if (permission == LocationPermission.whileInUse ||
-               permission == LocationPermission.always) {
+        permission == LocationPermission.always) {
       _updateLocationInFilter();
     }
   }
@@ -92,81 +102,291 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final searchState = ref.watch(paginatedSearchProvider);
+  void _onSearchChanged(String query) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(AppConstants.searchDebounceTime, () {
+      final currentFilter = ref.read(searchFilterProvider);
+      ref.read(searchFilterProvider.notifier).state = SearchFilter(
+        q: query.isEmpty ? null : query,
+        lat: currentFilter.lat,
+        lng: currentFilter.lng,
+        radiusKm: currentFilter.radiusKm,
+        type: currentFilter.type,
+        sidoCode: currentFilter.sidoCode,
+        sggCode: currentFilter.sggCode,
+        sort: currentFilter.sort,
+      );
+    });
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('유치원 검색'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final currentFilter = ref.read(searchFilterProvider);
-              final resetFilter = currentFilter.reset();
-              ref.read(searchFilterProvider.notifier).state = resetFilter;
-            },
-            child: const Text('필터 초기화'),
-          ),
-        ],
+  void _clearSearch() {
+    _searchController.clear();
+    _debounceTimer?.cancel();
+    final currentFilter = ref.read(searchFilterProvider);
+    ref.read(searchFilterProvider.notifier).state = SearchFilter(
+      lat: currentFilter.lat,
+      lng: currentFilter.lng,
+      radiusKm: currentFilter.radiusKm,
+      type: currentFilter.type,
+      sidoCode: currentFilter.sidoCode,
+      sggCode: currentFilter.sggCode,
+      sort: currentFilter.sort,
+    );
+  }
+
+  // --- 필터 바텀시트 ---
+
+  void _showTypeFilter() {
+    final filter = ref.read(searchFilterProvider);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      body: Column(
-        children: [
-          // Search and filter area
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppColors.background,
-            child: Column(
-              children: [
-                const CustomSearchBar(),
-                const SizedBox(height: 16),
-                const RegionSelector(),
-                const SizedBox(height: 16),
-                const FilterChips(),
-                const Divider(),
-              ],
-            ),
-          ),
-
-          // Search results
-          Expanded(
-            child: _buildSearchResults(searchState),
-          ),
-        ],
+      builder: (context) => _FilterSheet(
+        title: '설립유형',
+        options: ['전체', ...AppConstants.establishTypes],
+        selected: filter.type ?? '전체',
+        onSelected: (value) {
+          final type = value == '전체' ? null : value;
+          ref.read(searchFilterProvider.notifier).state =
+              filter.copyWith(type: type);
+          Navigator.pop(context);
+        },
       ),
     );
   }
 
-  static const _sortLabels = {
-    'distance': '거리순',
-    'capacity': '정원순',
-    'name': '이름순',
-  };
-
-  Widget _buildSortDropdown() {
-    final filter = ref.watch(searchFilterProvider);
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: filter.sort,
-        isDense: true,
-        style: AppTextStyles.body2.copyWith(
-          color: AppColors.gray700,
-        ),
-        icon: const Icon(Icons.arrow_drop_down, size: 20),
-        items: _sortLabels.entries
-            .map((e) => DropdownMenuItem(
-                  value: e.key,
-                  child: Text(e.value),
-                ))
-            .toList(),
-        onChanged: (sort) {
-          if (sort != null) {
-            ref.read(searchFilterProvider.notifier).state =
-                filter.copyWith(sort: sort);
-          }
+  void _showSortFilter() {
+    final filter = ref.read(searchFilterProvider);
+    const labels = {'distance': '거리순', 'name': '이름순', 'capacity': '정원순'};
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => _FilterSheet(
+        title: '정렬',
+        options: labels.values.toList(),
+        selected: labels[filter.sort] ?? '거리순',
+        onSelected: (value) {
+          final sort = labels.entries
+              .firstWhere((e) => e.value == value)
+              .key;
+          ref.read(searchFilterProvider.notifier).state =
+              filter.copyWith(sort: sort);
+          Navigator.pop(context);
         },
       ),
     );
+  }
+
+  void _showRadiusFilter() {
+    final filter = ref.read(searchFilterProvider);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => _FilterSheet(
+        title: '검색 반경',
+        options: AppConstants.radiusOptions.map((r) => '${r.toInt()}km').toList(),
+        selected: '${filter.radiusKm.toInt()}km',
+        onSelected: (value) {
+          final radius = double.parse(value.replaceAll('km', ''));
+          ref.read(searchFilterProvider.notifier).state =
+              filter.copyWith(radiusKm: radius);
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  void _showRegionFilter() {
+    final filter = ref.read(searchFilterProvider);
+    final regionsAsync = ref.read(regionsProvider);
+    regionsAsync.whenData((regionResponse) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) => _RegionFilterSheet(
+          regions: regionResponse.regions,
+          selectedSidoCode: filter.sidoCode,
+          selectedSggCode: filter.sggCode,
+          onSelected: (sidoCode, sggCode) {
+            ref.read(searchFilterProvider.notifier).state =
+                filter.copyWith(sidoCode: sidoCode, sggCode: sggCode);
+            Navigator.pop(context);
+          },
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchState = ref.watch(paginatedSearchProvider);
+    final filter = ref.watch(searchFilterProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 검색바
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.gray100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    const Icon(Icons.search, color: AppColors.gray500, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        textAlignVertical: TextAlignVertical.center,
+                        decoration: InputDecoration(
+                          hintText: '유치원 이름이나 주소를 검색하세요',
+                          hintStyle: AppTextStyles.body2.copyWith(
+                            color: AppColors.gray500,
+                            height: 1.0,
+                          ),
+                          border: InputBorder.none,
+                          isCollapsed: true,
+                        ),
+                        style: AppTextStyles.body2.copyWith(height: 1.0),
+                      ),
+                    ),
+                    if (_searchController.text.isNotEmpty)
+                      GestureDetector(
+                        onTap: _clearSearch,
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(Icons.close, color: AppColors.gray400, size: 20),
+                        ),
+                      )
+                    else
+                      const SizedBox(width: 14),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 필터 칩 가로스크롤
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _FilterButton(
+                    label: filter.type ?? '설립유형',
+                    isActive: filter.hasType,
+                    onTap: _showTypeFilter,
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterButton(
+                    label: _getRegionLabel(filter),
+                    isActive: filter.hasRegion,
+                    onTap: _showRegionFilter,
+                  ),
+                  if (filter.hasLocation) ...[
+                    const SizedBox(width: 8),
+                    _FilterButton(
+                      label: '${filter.radiusKm.toInt()}km',
+                      isActive: filter.radiusKm != AppConstants.defaultRadius,
+                      onTap: _showRadiusFilter,
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  _FilterButton(
+                    label: _getSortLabel(filter.sort),
+                    isActive: filter.sort != 'distance',
+                    onTap: _showSortFilter,
+                  ),
+                  // 필터 초기화
+                  if (filter.hasType || filter.hasRegion || filter.sort != 'distance' || filter.radiusKm != AppConstants.defaultRadius) ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        _searchController.clear();
+                        ref.read(searchFilterProvider.notifier).state = filter.reset();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.gray300),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.refresh, size: 18, color: AppColors.gray500),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // 결과 수
+            if (!searchState.isInitialLoading && searchState.items.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${searchState.totalElements}개 유치원',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.gray600),
+                  ),
+                ),
+              ),
+
+            // 결과 목록
+            Expanded(
+              child: _buildSearchResults(searchState),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getRegionLabel(SearchFilter filter) {
+    if (!filter.hasRegion) return '지역';
+    final regionsAsync = ref.read(regionsProvider);
+    return regionsAsync.whenOrNull(
+          data: (regionResponse) {
+            final region = regionResponse.regions
+                .cast<Region?>()
+                .firstWhere((r) => r?.sidoCode == filter.sidoCode, orElse: () => null);
+            if (region == null) return '지역';
+            if (filter.sggCode != null) {
+              final sgg = region.sggList
+                  .cast<District?>()
+                  .firstWhere((d) => d?.sggCode == filter.sggCode, orElse: () => null);
+              if (sgg != null) return '${region.sidoName} ${sgg.sggName}';
+            }
+            return region.sidoName;
+          },
+        ) ??
+        '지역';
+  }
+
+  String _getSortLabel(String sort) {
+    const labels = {'distance': '거리순', 'name': '이름순', 'capacity': '정원순'};
+    return labels[sort] ?? '거리순';
   }
 
   Widget _buildSearchResults(PaginatedSearchState searchState) {
@@ -201,9 +421,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             : '위치 권한을 허용하면 주변 유치원을 찾을 수 있어요',
         actionText: '필터 초기화',
         onAction: () {
+          _searchController.clear();
           final currentFilter = ref.read(searchFilterProvider);
-          final resetFilter = currentFilter.reset();
-          ref.read(searchFilterProvider.notifier).state = resetFilter;
+          ref.read(searchFilterProvider.notifier).state = currentFilter.reset();
         },
       );
     }
@@ -211,63 +431,295 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final kindergartens = searchState.items;
     _triggerStaggerAnimation(kindergartens.length);
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              Text(
-                '${searchState.totalElements}개 유치원',
-                style: AppTextStyles.body2.copyWith(
-                  color: AppColors.gray600,
-                  fontWeight: FontWeight.w500,
-                ),
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: kindergartens.length + (searchState.hasNextPage ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index >= kindergartens.length) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final kindergarten = kindergartens[index];
+        final isFav = ref.watch(isFavoriteProvider(kindergarten.id));
+
+        final tile = KindergartenListTile(
+          kindergarten: kindergarten,
+          onTap: () => context.push('/detail/${kindergarten.id}'),
+          onFavoriteToggle: () => toggleFavorite(ref, kindergarten.id),
+          isFavorite: isFav,
+        );
+
+        if (_staggerController != null && index < 10) {
+          final animation = StaggeredListItem.createAnimation(
+            controller: _staggerController!,
+            index: index,
+            totalCount: kindergartens.length.clamp(1, 10),
+          );
+          return StaggeredListItem(
+            animation: animation,
+            child: tile,
+          );
+        }
+
+        return tile;
+      },
+    );
+  }
+}
+
+// --- 필터 칩 버튼 ---
+
+class _FilterButton extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _FilterButton({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isActive ? AppColors.primary : AppColors.gray300,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: AppTextStyles.chipText.copyWith(
+                color: isActive ? AppColors.primary : AppColors.gray700,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               ),
-              const Spacer(),
-              _buildSortDropdown(),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 16,
+              color: isActive ? AppColors.primary : AppColors.gray500,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- 일반 필터 바텀시트 ---
+
+class _FilterSheet extends StatelessWidget {
+  final String title;
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  const _FilterSheet({
+    required this.title,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTextStyles.headline6),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: options.map((option) {
+              final isSelected = option == selected;
+              return GestureDetector(
+                onTap: () => onSelected(option),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: isSelected
+                      ? BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.circular(20),
+                        )
+                      : BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.gray300),
+                        ),
+                  child: Text(
+                    option,
+                    style: AppTextStyles.body2.copyWith(
+                      color: isSelected ? Colors.white : AppColors.gray700,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- 지역 필터 바텀시트 ---
+
+class _RegionFilterSheet extends StatefulWidget {
+  final List<Region> regions;
+  final String? selectedSidoCode;
+  final String? selectedSggCode;
+  final void Function(String? sidoCode, String? sggCode) onSelected;
+
+  const _RegionFilterSheet({
+    required this.regions,
+    required this.selectedSidoCode,
+    required this.selectedSggCode,
+    required this.onSelected,
+  });
+
+  @override
+  State<_RegionFilterSheet> createState() => _RegionFilterSheetState();
+}
+
+class _RegionFilterSheetState extends State<_RegionFilterSheet> {
+  String? _sidoCode;
+  String? _sggCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _sidoCode = widget.selectedSidoCode;
+    _sggCode = widget.selectedSggCode;
+  }
+
+  Region? get _selectedRegion => widget.regions
+      .cast<Region?>()
+      .firstWhere((r) => r?.sidoCode == _sidoCode, orElse: () => null);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24, 20, 24, MediaQuery.of(context).padding.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('지역', style: AppTextStyles.headline6),
+          const SizedBox(height: 16),
+
+          // 시/도
+          Text('시/도', style: AppTextStyles.caption.copyWith(color: AppColors.gray600)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildRegionChip('전체', _sidoCode == null, () {
+                setState(() { _sidoCode = null; _sggCode = null; });
+              }),
+              ...widget.regions.map((region) => _buildRegionChip(
+                region.sidoName,
+                _sidoCode == region.sidoCode,
+                () => setState(() { _sidoCode = region.sidoCode; _sggCode = null; }),
+              )),
             ],
           ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemCount: kindergartens.length + (searchState.hasNextPage ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index >= kindergartens.length) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
 
-              final kindergarten = kindergartens[index];
-              final isFavAsync = ref.watch(isFavoriteProvider(kindergarten.id));
+          // 시/군/구
+          if (_selectedRegion != null) ...[
+            const SizedBox(height: 16),
+            Text('시/군/구', style: AppTextStyles.caption.copyWith(color: AppColors.gray600)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _buildRegionChip('전체', _sggCode == null, () {
+                    setState(() => _sggCode = null);
+                  }),
+                  const SizedBox(width: 8),
+                  ..._selectedRegion!.sggList.map((district) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _buildRegionChip(
+                      district.sggName,
+                      _sggCode == district.sggCode,
+                      () => setState(() => _sggCode = district.sggCode),
+                    ),
+                  )),
+                ],
+              ),
+            ),
+          ],
 
-              final tile = KindergartenListTile(
-                kindergarten: kindergarten,
-                onTap: () => context.push('/detail/${kindergarten.id}'),
-                onFavoriteToggle: () => toggleFavorite(ref, kindergarten.id),
-                isFavorite: isFavAsync.value ?? false,
-              );
+          const SizedBox(height: 20),
 
-              if (_staggerController != null && index < 10) {
-                final animation = StaggeredListItem.createAnimation(
-                  controller: _staggerController!,
-                  index: index,
-                  totalCount: kindergartens.length.clamp(1, 10),
-                );
-                return StaggeredListItem(
-                  animation: animation,
-                  child: tile,
-                );
-              }
+          // 적용 버튼
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () => widget.onSelected(_sidoCode, _sggCode),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('적용'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              return tile;
-            },
+  Widget _buildRegionChip(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: isSelected
+            ? BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(18),
+              )
+            : BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.gray300),
+              ),
+        child: Text(
+          label,
+          style: AppTextStyles.chipText.copyWith(
+            color: isSelected ? Colors.white : AppColors.gray700,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
-      ],
+      ),
     );
   }
 }

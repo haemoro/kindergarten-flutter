@@ -102,7 +102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Container(
           width: double.infinity,
           padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top + 24,
+            top: MediaQuery.of(context).padding.top,
             left: 24,
             right: 24,
             bottom: 48,
@@ -234,7 +234,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   return KindergartenCompactCard(
                     kindergarten: item,
                     onTap: () => context.push('/detail/${item.id}'),
-                    isFavorite: ref.watch(isFavoriteProvider(item.id)).value ?? false,
+                    isFavorite: ref.watch(isFavoriteProvider(item.id)),
                     onFavoriteToggle: () => toggleFavorite(ref, item.id),
                   );
                 },
