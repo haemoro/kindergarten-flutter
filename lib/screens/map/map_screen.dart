@@ -12,8 +12,6 @@ import '../../core/utils/establish_type_helper.dart';
 import '../../providers/location_providers.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../models/map_marker.dart';
-import '../../models/kindergarten_search.dart';
-import '../../widgets/badge_chip.dart';
 import 'widgets/marker_bottom_sheet.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
@@ -25,23 +23,17 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   KakaoMapController? _mapController;
-  Timer? _cameraDebounceTimer;
   String _currentAddress = '';
   bool _showList = false;
+  bool _needsResearch = false;
 
   List<CustomOverlay> _overlays = [];
   final Map<String, MapMarker> _markerDataMap = {};
   final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
   String? _selectedMarkerId;
-
-  // 텍스트 검색 관련
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
-  Timer? _searchDebounceTimer;
-  List<KindergartenSearch> _searchResults = [];
-  bool _isSearchMode = false;
-  bool _isSearchLoading = false;
+  double _radiusKm = AppConstants.defaultRadius;
   LatLng? _lastMapCenter;
+  LatLng? _lastLoadedCenter;
 
   static final LatLng _defaultCenter = LatLng(37.5666805, 126.9784147);
 
@@ -64,10 +56,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
-    _cameraDebounceTimer?.cancel();
-    _searchDebounceTimer?.cancel();
-    _searchController.dispose();
-    _searchFocusNode.dispose();
     _selectedMarkerNotifier.dispose();
     super.dispose();
   }
@@ -77,12 +65,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final position = await ref.read(currentPositionProvider.future);
       if (position != null && _mapController != null) {
         _moveToPosition(position);
-        _loadMarkers(position.latitude, position.longitude);
-        _updateAddress(position.latitude, position.longitude);
+        _loadMarkersAndUpdateAddress(position.latitude, position.longitude);
       }
     } catch (e) {
-      _loadMarkers(_defaultCenter.latitude, _defaultCenter.longitude);
-      _updateAddress(_defaultCenter.latitude, _defaultCenter.longitude);
+      _loadMarkersAndUpdateAddress(
+          _defaultCenter.latitude, _defaultCenter.longitude);
     }
   }
 
@@ -101,6 +88,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  Future<void> _loadMarkersAndUpdateAddress(double lat, double lng) async {
+    await _loadMarkers(lat, lng);
+    _updateAddress(lat, lng);
+    setState(() {
+      _lastLoadedCenter = LatLng(lat, lng);
+      _needsResearch = false;
+    });
+  }
+
   Future<void> _loadMarkers(double lat, double lng) async {
     if (_mapController == null) return;
 
@@ -108,7 +104,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final markersData = await ref.read(mapMarkersProvider((
         lat: lat,
         lng: lng,
-        radiusKm: AppConstants.defaultRadius,
+        radiusKm: _radiusKm,
         type: null,
       )).future);
 
@@ -151,13 +147,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _selectedMarkerNotifier.value = null;
     }
 
-    // 변경된 마커만 강제 제거 후 재추가 (플러그인이 동일 ID content 변경을 무시하므로)
     final idsToRefresh = <String>[
       if (previousId != null) previousId,
       if (markerId != null && markerId != previousId) markerId,
     ];
     if (_mapController != null && idsToRefresh.isNotEmpty) {
-      // 해당 ID들만 제거 (빈 리스트로 clear하면 전부 지워짐)
       final keepIds = _markerDataMap.keys
           .where((id) => !idsToRefresh.contains(id))
           .toList();
@@ -188,8 +182,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final position = await ref.read(currentPositionProvider.future);
       if (position != null) {
         _moveToPosition(position);
-        _loadMarkers(position.latitude, position.longitude);
-        _updateAddress(position.latitude, position.longitude);
+        _loadMarkersAndUpdateAddress(position.latitude, position.longitude);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -206,75 +199,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  void _onSearchChanged(String query) {
-    _searchDebounceTimer?.cancel();
-    if (query.trim().isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _isSearchMode = false;
-        _isSearchLoading = false;
-      });
-      return;
+  void _researchHere() {
+    final center = _lastMapCenter;
+    if (center != null) {
+      _loadMarkersAndUpdateAddress(center.latitude, center.longitude);
     }
-    setState(() {
-      _isSearchMode = true;
-      _isSearchLoading = true;
-    });
-    _searchDebounceTimer = Timer(
-      const Duration(milliseconds: 400),
-      () => _performSearch(query.trim()),
-    );
-  }
-
-  Future<void> _performSearch(String query) async {
-    try {
-      final repository = ref.read(kindergartenRepositoryProvider);
-      final result = await repository.searchKindergartens(
-        q: query,
-        lat: _lastMapCenter?.latitude,
-        lng: _lastMapCenter?.longitude,
-        sort: 'distance',
-        size: 20,
-      );
-      if (mounted) {
-        setState(() {
-          _searchResults = result.content;
-          _isSearchLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _searchResults = [];
-          _isSearchLoading = false;
-        });
-      }
-    }
-  }
-
-  void _exitSearchMode() {
-    _searchController.clear();
-    _searchFocusNode.unfocus();
-    setState(() {
-      _isSearchMode = false;
-      _searchResults = [];
-      _showList = false;
-    });
-  }
-
-  void _focusSearchResult(KindergartenSearch item) async {
-    _searchController.clear();
-    _searchFocusNode.unfocus();
-    setState(() {
-      _isSearchMode = false;
-      _searchResults = [];
-      _showList = false;
-    });
-    if (_mapController != null) {
-      await _mapController!.panTo(LatLng(item.lat, item.lng));
-    }
-    _loadMarkers(item.lat, item.lng);
-    _updateAddress(item.lat, item.lng);
   }
 
   void _focusMarker(MapMarker marker) async {
@@ -285,86 +214,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  Widget _buildSearchResultsList() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Text('검색 결과', style: AppTextStyles.headline6),
-              if (!_isSearchLoading) ...[
-                const SizedBox(width: 8),
-                Text(
-                  '${_searchResults.length}개',
-                  style: AppTextStyles.body2.copyWith(color: AppColors.primary),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: _isSearchLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _searchResults.isEmpty
-                  ? Center(
-                      child: Text(
-                        _searchController.text.isEmpty
-                            ? '유치원 이름을 입력하세요'
-                            : '검색 결과가 없습니다',
-                        style: AppTextStyles.body2.copyWith(color: AppColors.gray500),
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: _searchResults.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
-                      itemBuilder: (context, index) {
-                        final item = _searchResults[index];
-                        final typeColor = EstablishTypeHelper.getColor(item.establishType);
-                        return ListTile(
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              EstablishTypeHelper.getIcon(item.establishType),
-                              color: typeColor,
-                              size: 20,
-                            ),
-                          ),
-                          title: Text(
-                            item.name,
-                            style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            item.address,
-                            style: AppTextStyles.caption.copyWith(color: AppColors.gray500),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: const Icon(Icons.chevron_right, color: AppColors.gray400),
-                          onTap: () => _focusSearchResult(item),
-                          onLongPress: () => context.push('/detail/${item.id}'),
-                        );
-                      },
-                    ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildNearbyMarkersList(List<MapMarker> markers) {
     return Column(
       children: [
+        // 헤더 + 닫기
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
           child: Row(
             children: [
               Text('주변 유치원', style: AppTextStyles.headline6),
@@ -372,6 +227,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               Text(
                 '${markers.length}개',
                 style: AppTextStyles.body2.copyWith(color: AppColors.primary),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 20),
+                onPressed: () => setState(() => _showList = false),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
@@ -382,16 +244,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ? Center(
                   child: Text(
                     '주변에 유치원이 없습니다',
-                    style: AppTextStyles.body2.copyWith(color: AppColors.gray500),
+                    style:
+                        AppTextStyles.body2.copyWith(color: AppColors.gray500),
                   ),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   itemCount: markers.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, indent: 16, endIndent: 16),
                   itemBuilder: (context, index) {
                     final marker = markers[index];
-                    final typeColor = EstablishTypeHelper.getColor(marker.establishType);
+                    final typeColor =
+                        EstablishTypeHelper.getColor(marker.establishType);
                     return ListTile(
                       leading: Container(
                         width: 40,
@@ -408,15 +273,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       ),
                       title: Text(
                         marker.name,
-                        style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
+                        style: AppTextStyles.body2
+                            .copyWith(fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: BadgeChip.establishType(
-                        label: marker.establishType,
-                        establishType: marker.establishType,
+                      subtitle: Text(
+                        marker.address ?? marker.establishType,
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.gray500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: const Icon(Icons.chevron_right, color: AppColors.gray400),
+                      trailing: const Icon(Icons.chevron_right,
+                          color: AppColors.gray400),
                       onTap: () => _focusMarker(marker),
                       onLongPress: () => context.push('/detail/${marker.id}'),
                     );
@@ -429,7 +299,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 웹 플랫폼 미지원 처리
     if (kIsWeb) {
       return Scaffold(
         appBar: AppBar(title: const Text('지도')),
@@ -441,10 +310,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               SizedBox(height: 16),
               Text(
                 '지도는 모바일에서만 지원됩니다',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: AppColors.gray600,
-                ),
+                style: TextStyle(fontSize: 16, color: AppColors.gray600),
               ),
             ],
           ),
@@ -463,8 +329,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
 
     final markers = _markerDataMap.values.toList();
-    final searchBarTop = MediaQuery.of(context).padding.top + 8;
-    const searchBarHeight = 48.0;
+    final safeTop = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       body: Stack(
@@ -481,21 +346,146 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             onCustomOverlayTap: _onOverlayTapped,
             onCameraIdle: (LatLng latLng, int zoomLevel) {
               _lastMapCenter = latLng;
-              _cameraDebounceTimer?.cancel();
-              _cameraDebounceTimer = Timer(
-                AppConstants.mapCameraDebounceTime,
-                () {
-                  _loadMarkers(latLng.latitude, latLng.longitude);
-                  _updateAddress(latLng.latitude, latLng.longitude);
-                },
-              );
+              // 이전 로드 위치와 일정 거리 이상 차이나면 재검색 표시
+              if (_lastLoadedCenter != null) {
+                final moved = _hasMoved(_lastLoadedCenter!, latLng);
+                if (moved && !_needsResearch) {
+                  setState(() => _needsResearch = true);
+                }
+              }
             },
           ),
 
-          // 줌 컨트롤 + 현위치 FAB
+          // 상단: 현위치 주소 + 목록 버튼
+          Positioned(
+            top: safeTop + 8,
+            left: 16,
+            right: 16,
+            child: Row(
+              children: [
+                // 현위치 주소 칩
+                if (_currentAddress.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_on,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _currentAddress,
+                          style: AppTextStyles.body2
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Spacer(),
+                // 목록 보기 버튼
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _showList = !_showList;
+                    _selectedMarkerNotifier.value = null;
+                  }),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _showList ? Icons.map : Icons.list,
+                      size: 20,
+                      color: AppColors.gray700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 반경 선택 칩
           if (!_showList)
             Positioned(
-              top: searchBarTop + searchBarHeight + 16,
+              top: safeTop + 56,
+              left: 16,
+              child: Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: AppConstants.radiusOptions.map((r) {
+                    final isSelected = _radiusKm == r;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _radiusKm = r);
+                        final center = _lastMapCenter ?? _lastLoadedCenter;
+                        if (center != null) {
+                          _loadMarkersAndUpdateAddress(
+                              center.latitude, center.longitude);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '${r.toInt()}km',
+                          style: AppTextStyles.caption.copyWith(
+                            color:
+                                isSelected ? Colors.white : AppColors.gray600,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+
+          // 줌 컨트롤
+          if (!_showList)
+            Positioned(
+              top: safeTop + 56,
               right: 16,
               child: Column(
                 children: [
@@ -506,7 +496,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       final level = await _mapController!.getLevel();
                       _mapController!.setLevel(level - 1);
                     },
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(8)),
                   ),
                   Container(height: 1, width: 36, color: AppColors.gray200),
                   _ZoomButton(
@@ -516,11 +507,57 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       final level = await _mapController!.getLevel();
                       _mapController!.setLevel(level + 1);
                     },
-                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                    borderRadius:
+                        const BorderRadius.vertical(bottom: Radius.circular(8)),
                   ),
                 ],
               ),
             ),
+
+          // "현 지도에서 재검색" 버튼
+          if (_needsResearch && !_showList)
+            Positioned(
+              top: safeTop + 96,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: _researchHere,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.refresh,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          '현 지도에서 재검색',
+                          style: AppTextStyles.body2.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 현위치 FAB
           if (!_showList)
             Positioned(
               bottom: 100,
@@ -534,108 +571,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
 
-          // 검색바
-          Positioned(
-            top: searchBarTop,
-            left: 16,
-            right: 16,
-            child: Container(
-              height: searchBarHeight,
-              padding: const EdgeInsets.only(left: 16, right: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isSearchMode ? Icons.search : Icons.location_on,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      textAlignVertical: TextAlignVertical.center,
-                      decoration: InputDecoration(
-                        hintText: _currentAddress.isNotEmpty
-                            ? _currentAddress
-                            : '유치원 이름 또는 주소로 검색',
-                        hintStyle: AppTextStyles.body2.copyWith(
-                          color: AppColors.gray500,
-                          height: 1.0,
-                        ),
-                        border: InputBorder.none,
-                        isCollapsed: true,
-                      ),
-                      style: AppTextStyles.body2.copyWith(height: 1.0),
-                      onChanged: (value) {
-                        _onSearchChanged(value);
-                        if (value.isNotEmpty && !_showList) {
-                          setState(() {
-                            _showList = true;
-                            _selectedMarkerNotifier.value = null;
-                          });
-                        }
-                      },
-                      onTap: () {
-                        if (!_showList) {
-                          setState(() {
-                            _showList = true;
-                            _selectedMarkerNotifier.value = null;
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                  if (_isSearchMode || _showList)
-                    GestureDetector(
-                      onTap: _exitSearchMode,
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(Icons.close, color: AppColors.gray500, size: 20),
-                      ),
-                    )
-                  else
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _showList = !_showList;
-                        _selectedMarkerNotifier.value = null;
-                      }),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(Icons.keyboard_arrow_down, color: AppColors.gray500, size: 20),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
           // 유치원 목록 패널
           if (_showList)
             Positioned(
-              top: searchBarTop + searchBarHeight + 8,
+              top: safeTop + 56,
               left: 0,
               right: 0,
               bottom: 0,
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(16)),
                 ),
-                child: _isSearchMode
-                    ? _buildSearchResultsList()
-                    : _buildNearbyMarkersList(markers),
+                child: _buildNearbyMarkersList(markers),
               ),
             ),
 
@@ -651,8 +600,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   alignment: Alignment.bottomCenter,
                   child: Material(
                     elevation: 8,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16)),
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(16)),
                     child: MarkerBottomSheet(
                       kindergarten: selectedMarker,
                       onClose: _closeBottomSheet,
@@ -668,6 +617,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ],
       ),
     );
+  }
+
+  /// 두 좌표가 의미 있게 이동했는지 (약 200m 이상)
+  bool _hasMoved(LatLng a, LatLng b) {
+    const threshold = 0.002; // ~200m
+    return (a.latitude - b.latitude).abs() > threshold ||
+        (a.longitude - b.longitude).abs() > threshold;
   }
 }
 

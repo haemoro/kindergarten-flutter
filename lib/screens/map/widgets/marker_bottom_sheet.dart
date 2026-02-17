@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -40,23 +41,25 @@ class MarkerBottomSheet extends StatelessWidget {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
 
-          // 유치원 정보
+          // 유치원 이름 + 유형 배지 + 닫기
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      kindergarten.name,
-                      style: AppTextStyles.headline6,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    Flexible(
+                      child: Text(
+                        kindergarten.name,
+                        style: AppTextStyles.headline6,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(width: 8),
                     BadgeChip.establishType(
                       label: kindergarten.establishType,
                       establishType: kindergarten.establishType,
@@ -67,38 +70,63 @@ class MarkerBottomSheet extends StatelessWidget {
               IconButton(
                 onPressed: onClose,
                 icon: const Icon(Icons.close),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
 
-          // 위치 정보
-          Row(
-            children: [
-              const Icon(
-                Icons.location_on,
-                size: 16,
-                color: AppColors.gray600,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '위도: ${kindergarten.lat.toStringAsFixed(6)}',
-                style: AppTextStyles.body2.copyWith(
-                  color: AppColors.gray600,
+          // 주소
+          if (kindergarten.address != null && kindergarten.address!.isNotEmpty)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: AppColors.gray500,
                 ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                '경도: ${kindergarten.lng.toStringAsFixed(6)}',
-                style: AppTextStyles.body2.copyWith(
-                  color: AppColors.gray600,
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    kindergarten.address!,
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.gray600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
 
-          const SizedBox(height: 24),
+          // 전화번호
+          if (kindergarten.phone != null && kindergarten.phone!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () => launchUrl(Uri.parse('tel:${kindergarten.phone}')),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.phone_outlined,
+                    size: 16,
+                    color: AppColors.gray500,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    kindergarten.phone!,
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
 
           // 액션 버튼들
           Row(

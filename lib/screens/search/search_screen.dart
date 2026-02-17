@@ -190,27 +190,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     );
   }
 
-  void _showRadiusFilter() {
-    final filter = ref.read(searchFilterProvider);
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => _FilterSheet(
-        title: '검색 반경',
-        options: AppConstants.radiusOptions.map((r) => '${r.toInt()}km').toList(),
-        selected: '${filter.radiusKm.toInt()}km',
-        onSelected: (value) {
-          final radius = double.parse(value.replaceAll('km', ''));
-          ref.read(searchFilterProvider.notifier).state =
-              filter.copyWith(radiusKm: radius);
-          Navigator.pop(context);
-        },
-      ),
-    );
-  }
-
   void _showRegionFilter() {
     final filter = ref.read(searchFilterProvider);
     final regionsAsync = ref.read(regionsProvider);
@@ -319,14 +298,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     isActive: filter.hasRegion,
                     onTap: _showRegionFilter,
                   ),
-                  if (filter.hasLocation) ...[
-                    const SizedBox(width: 8),
-                    _FilterButton(
-                      label: '${filter.radiusKm.toInt()}km',
-                      isActive: filter.radiusKm != AppConstants.defaultRadius,
-                      onTap: _showRadiusFilter,
-                    ),
-                  ],
                   const SizedBox(width: 8),
                   _FilterButton(
                     label: _getSortLabel(filter.sort),
@@ -334,7 +305,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                     onTap: _showSortFilter,
                   ),
                   // 필터 초기화
-                  if (filter.hasType || filter.hasRegion || filter.sort != 'distance' || filter.radiusKm != AppConstants.defaultRadius) ...[
+                  if (filter.hasType || filter.hasRegion || filter.sort != 'distance') ...[
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
