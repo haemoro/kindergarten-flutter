@@ -42,7 +42,7 @@ dependencies:
   dio: ^5.7.0
   
   # 지도
-  flutter_naver_map: ^1.4.4
+  kakao_map_plugin: ^0.4.0
   
   # 위치
   geolocator: ^13.0.2

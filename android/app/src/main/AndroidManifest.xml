@@ -12,7 +12,8 @@
     <application
         android:label="유치원 찾기"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -37,10 +38,6 @@
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
-        <!-- Naver Maps API Key -->
-        <meta-data
-            android:name="com.naver.maps.map.CLIENT_ID"
-            android:value="YOUR_CLIENT_ID" />
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

@@ -39,7 +39,7 @@ class DetailScreen extends ConsumerWidget {
               return [
                 // Gradient hero header
                 SliverAppBar(
-                  expandedHeight: 200,
+                  expandedHeight: 120,
                   pinned: true,
                   leading: IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -94,24 +94,31 @@ class DetailScreen extends ConsumerWidget {
                       decoration: AppDecorations.headerDecoration(),
                       child: SafeArea(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 60, 20, 16),
+                          padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              BadgeChip.establishType(
-                                label: kindergarten.establishType,
-                                establishType: kindergarten.establishType,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                kindergarten.name,
-                                style: AppTextStyles.headline5.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      kindergarten.name,
+                                      style: AppTextStyles.headline5.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  BadgeChip.establishType(
+                                    label: kindergarten.establishType,
+                                    establishType: kindergarten.establishType,
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 4),
                               Row(

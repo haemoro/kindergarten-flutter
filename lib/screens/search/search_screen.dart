@@ -10,9 +10,11 @@ import '../../providers/location_providers.dart';
 import '../../widgets/kindergarten_list_tile.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
+import '../../widgets/staggered_animation.dart';
 import 'widgets/search_bar.dart';
 import 'widgets/filter_chips.dart';
 import 'widgets/region_selector.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -21,8 +23,11 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends ConsumerState<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen>
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  AnimationController? _staggerController;
+  int _previousItemCount = 0;
 
   @override
   void initState() {
@@ -35,6 +40,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _staggerController?.dispose();
     super.dispose();
   }
 
@@ -45,14 +51,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
+  void _triggerStaggerAnimation(int itemCount) {
+    if (itemCount > 0 && itemCount != _previousItemCount) {
+      _staggerController?.dispose();
+      _staggerController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 600),
+      )..forward();
+      _previousItemCount = itemCount;
+    }
+  }
+
   Future<void> _requestLocationPermission() async {
     final permission = await ref.read(locationPermissionStatusProvider.future);
-    
+
     if (permission == LocationPermission.denied) {
       final newPermission = await ref.read(
         requestLocationPermissionProvider(null).future
       );
-      
+
       if (newPermission == LocationPermission.whileInUse ||
           newPermission == LocationPermission.always) {
         _updateLocationInFilter();
@@ -95,7 +112,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       body: Column(
         children: [
-          // 검색 및 필터 영역
+          // Search and filter area
           Container(
             padding: const EdgeInsets.all(16),
             color: AppColors.background,
@@ -111,7 +128,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
 
-          // 검색 결과 목록
+          // Search results
           Expanded(
             child: _buildSearchResults(searchState),
           ),
@@ -120,9 +137,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  static const _sortLabels = {
+    'distance': '거리순',
+    'capacity': '정원순',
+    'name': '이름순',
+  };
+
+  Widget _buildSortDropdown() {
+    final filter = ref.watch(searchFilterProvider);
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: filter.sort,
+        isDense: true,
+        style: AppTextStyles.body2.copyWith(
+          color: AppColors.gray700,
+        ),
+        icon: const Icon(Icons.arrow_drop_down, size: 20),
+        items: _sortLabels.entries
+            .map((e) => DropdownMenuItem(
+                  value: e.key,
+                  child: Text(e.value),
+                ))
+            .toList(),
+        onChanged: (sort) {
+          if (sort != null) {
+            ref.read(searchFilterProvider.notifier).state =
+                filter.copyWith(sort: sort);
+          }
+        },
+      ),
+    );
+  }
+
   Widget _buildSearchResults(PaginatedSearchState searchState) {
     if (searchState.isInitialLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        children: const [
+          ShimmerListTile(),
+          ShimmerListTile(),
+          ShimmerListTile(),
+          ShimmerListTile(),
+          ShimmerListTile(),
+        ],
+      );
     }
 
     if (searchState.error != null && searchState.items.isEmpty) {
@@ -151,18 +209,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     final kindergartens = searchState.items;
+    _triggerStaggerAnimation(kindergartens.length);
 
     return Column(
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Text(
-            '${searchState.totalElements}개 유치원',
-            style: AppTextStyles.body2.copyWith(
-              color: AppColors.gray600,
-              fontWeight: FontWeight.w500,
-            ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              Text(
+                '${searchState.totalElements}개 유치원',
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.gray600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              _buildSortDropdown(),
+            ],
           ),
         ),
         Expanded(
@@ -180,12 +244,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               final kindergarten = kindergartens[index];
               final isFavAsync = ref.watch(isFavoriteProvider(kindergarten.id));
 
-              return KindergartenListTile(
+              final tile = KindergartenListTile(
                 kindergarten: kindergarten,
                 onTap: () => context.push('/detail/${kindergarten.id}'),
                 onFavoriteToggle: () => toggleFavorite(ref, kindergarten.id),
                 isFavorite: isFavAsync.value ?? false,
               );
+
+              if (_staggerController != null && index < 10) {
+                final animation = StaggeredListItem.createAnimation(
+                  controller: _staggerController!,
+                  index: index,
+                  totalCount: kindergartens.length.clamp(1, 10),
+                );
+                return StaggeredListItem(
+                  animation: animation,
+                  child: tile,
+                );
+              }
+
+              return tile;
             },
           ),
         ),

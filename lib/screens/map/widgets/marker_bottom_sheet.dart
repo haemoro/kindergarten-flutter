@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../models/map_marker.dart';
@@ -8,11 +8,13 @@ import '../../../widgets/badge_chip.dart';
 class MarkerBottomSheet extends StatelessWidget {
   final MapMarker kindergarten;
   final VoidCallback? onDetailPressed;
+  final VoidCallback? onClose;
 
   const MarkerBottomSheet({
     super.key,
     required this.kindergarten,
     this.onDetailPressed,
+    this.onClose,
   });
 
   @override
@@ -63,9 +65,7 @@ class MarkerBottomSheet extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
+                onPressed: onClose,
                 icon: const Icon(Icons.close),
               ),
             ],
@@ -106,8 +106,7 @@ class MarkerBottomSheet extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.pop(context);
-                    // TODO: 길찾기 앱 연결
+                    onClose?.call();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('길찾기 기능 구현 예정')),
                     );
@@ -119,10 +118,7 @@ class MarkerBottomSheet extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: onDetailPressed ?? () {
-                    Navigator.pop(context);
-                    context.push('/detail/${kindergarten.id}');
-                  },
+                  onPressed: onDetailPressed,
                   icon: const Icon(Icons.info),
                   label: const Text('상세보기'),
                 ),

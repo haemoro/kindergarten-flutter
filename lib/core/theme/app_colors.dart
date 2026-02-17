@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary Colors (Design Course style)
-  static const Color primary = Color(0xFF00B6F0); // nearlyBlue
-  static const Color primaryVariant = Color(0xFF0095C7);
-  static const Color secondary = Color(0xFFFF9800);
-  static const Color secondaryVariant = Color(0xFFF57C00);
+  // Primary Colors (NOL-inspired Vivid Blue)
+  static const Color primary = Color(0xFF3549FF);
+  static const Color primaryVariant = Color(0xFF2A3BD4);
+  static const Color secondary = Color(0xFFFF8A65);
+  static const Color secondaryVariant = Color(0xFFE07050);
 
   // Surface Colors
   static const Color surface = Colors.white;
-  static const Color background = Color(0xFFF2F3F8); // cool-tone
+  static const Color background = Color(0xFFF5F6FA); // cool light blue tint
   static const Color card = Colors.white;
 
   // Text Colors
@@ -22,7 +22,7 @@ class AppColors {
   static const Color success = Color(0xFF4CAF50);
   static const Color warning = Color(0xFFFFC107);
   static const Color error = Color(0xFFF44336);
-  static const Color info = Color(0xFF00B6F0);
+  static const Color info = Color(0xFF3549FF);
 
   // Gray Scale
   static const Color gray50 = Color(0xFFFAFAFA);
@@ -37,21 +37,21 @@ class AppColors {
   static const Color gray900 = Color(0xFF212121);
 
   // Kindergarten Type Colors
-  static const Color publicType = Color(0xFF2196F3);
-  static const Color privateType = Color(0xFFFF9800);
-  static const Color corporationType = Color(0xFF4CAF50);
+  static const Color publicType = Color(0xFF3549FF);
+  static const Color privateType = Color(0xFFFF8A65);
+  static const Color corporationType = Color(0xFF48B080);
   static const Color otherType = Color(0xFF9E9E9E);
 
-  // Map Marker Colors
-  static const Color markerPublic = publicType;
-  static const Color markerPrivate = privateType;
-  static const Color markerCorporation = corporationType;
-  static const Color markerOther = otherType;
+  // Map Marker Colors (all primary blue)
+  static const Color markerPublic = primary;
+  static const Color markerPrivate = primary;
+  static const Color markerCorporation = primary;
+  static const Color markerOther = primary;
 
   // Badge Colors
-  static const Color mealBadge = Color(0xFF4CAF50);
-  static const Color busBadge = Color(0xFF2196F3);
-  static const Color extendedCareBadge = Color(0xFFFF9800);
+  static const Color mealBadge = Color(0xFF48B080);
+  static const Color busBadge = Color(0xFF5085FF);
+  static const Color extendedCareBadge = Color(0xFFFFB830);
 
   // Divider
   static const Color divider = gray300;
@@ -60,19 +60,15 @@ class AppColors {
   static const Color shadow = Color(0x1F000000);
 
   // Favorite
-  static const Color favoriteActive = Color(0xFFE91E63);
+  static const Color favoriteActive = Color(0xFFFF6B8A);
   static const Color favoriteInactive = gray400;
 
-  // Gradients
+  // Gradients (solid color - no gradient)
   static const LinearGradient primaryGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF00B6F0), Color(0xFF6078EA)],
+    colors: [primary, primary],
   );
 
   static const LinearGradient headerGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF2E3F6E), Color(0xFF00B6F0)],
+    colors: [primaryVariant, primaryVariant],
   );
 }

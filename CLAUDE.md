@@ -115,7 +115,7 @@ GoRouter + `StatefulShellRoute.indexedStack`로 하단 탭 네비게이션 구�
 | `flutter_riverpod` | 상태 관리 |
 | `dio` | HTTP 통신 |
 | `go_router` | 선언적 라우팅 |
-| `flutter_naver_map` | 지도 표시 (웹 미지원) |
+| `kakao_map_plugin` | 카카오 지도 표시 |
 | `geolocator` + `geocoding` | 현위치/주소 변환 |
 | `device_info_plus` | 기기 ID 생성 |
 | `shared_preferences` | 로컬 설정 저장 |

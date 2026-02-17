@@ -8,6 +8,7 @@ import '../../providers/favorite_providers.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
+import '../../widgets/shimmer_loading.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -78,29 +79,103 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                       direction: DismissDirection.endToStart,
                       confirmDismiss: (direction) => _confirmDelete(favorite),
                       background: Container(
-                        color: AppColors.error,
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 16),
+                        padding: const EdgeInsets.only(right: 24),
                         child: const Icon(
                           Icons.delete,
                           color: Colors.white,
                           size: 24,
                         ),
                       ),
-                      child: InkWell(
+                      child: GestureDetector(
                         onTap: () => context.push('/detail/${favorite.centerId}'),
-                        child: CheckboxListTile(
-                          value: isSelected,
-                          onChanged: (selected) => _toggleSelection(favorite.centerId, selected),
-                          title: Text(
-                            favorite.centerName,
-                            style: AppTextStyles.kindergartenName,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
+                            boxShadow: AppDecorations.cardShadow,
                           ),
-                          subtitle: Text(
-                            '즐겨찾기 추가: ${_formatDate(favorite.createdAt)}',
-                            style: AppTextStyles.caption,
+                          child: Material(
+                            color: isSelected
+                                ? AppColors.primary.withValues(alpha: 0.04)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.favorite,
+                                    color: AppColors.favoriteActive,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          favorite.centerName,
+                                          style: AppTextStyles.kindergartenName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${_formatDate(favorite.createdAt)} 추가',
+                                          style: AppTextStyles.caption,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  GestureDetector(
+                                    onTap: () => _toggleSelection(
+                                      favorite.centerId,
+                                      !isSelected,
+                                    ),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : Colors.transparent,
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? AppColors.primary
+                                              : AppColors.gray400,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(
+                                              Icons.check,
+                                              size: 16,
+                                              color: Colors.white,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          secondary: const Icon(Icons.favorite, color: AppColors.favoriteActive),
                         ),
                       ),
                     );
@@ -110,8 +185,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             ],
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
+        loading: () => ListView(
+          physics: const NeverScrollableScrollPhysics(),
+          children: const [
+            ShimmerFavoriteItem(),
+            ShimmerFavoriteItem(),
+            ShimmerFavoriteItem(),
+            ShimmerFavoriteItem(),
+            ShimmerFavoriteItem(),
+          ],
         ),
         error: (error, stackTrace) => ErrorState(
           message: error.toString(),
