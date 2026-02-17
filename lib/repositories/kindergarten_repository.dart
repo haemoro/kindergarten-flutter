@@ -17,6 +17,8 @@ class KindergartenRepository {
     double? radiusKm,
     String? type,
     String? q,
+    String? sidoCode,
+    String? sggCode,
     String? sort,
     int page = 0,
     int size = 20,
@@ -32,6 +34,8 @@ class KindergartenRepository {
       if (radiusKm != null) queryParameters['radiusKm'] = radiusKm;
       if (type != null && type.isNotEmpty) queryParameters['type'] = type;
       if (q != null && q.isNotEmpty) queryParameters['q'] = q;
+      if (sidoCode != null && sidoCode.isNotEmpty) queryParameters['sidoCode'] = sidoCode;
+      if (sggCode != null && sggCode.isNotEmpty) queryParameters['sggCode'] = sggCode;
       if (sort != null && sort.isNotEmpty) queryParameters['sort'] = sort;
 
       final response = await _dio.get(

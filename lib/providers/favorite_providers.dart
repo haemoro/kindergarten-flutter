@@ -34,6 +34,17 @@ class FavoritesNotifier extends AsyncNotifier<List<Favorite>> {
 
   /// 즐겨찾기 추가 (낙관적 업데이트)
   Future<bool> add(String centerId) async {
+    final current = state.valueOrNull ?? [];
+
+    // 임시 객체로 캐시에 먼저 추가 (즉시 UI 반영)
+    final tempFavorite = Favorite(
+      id: 'temp_$centerId',
+      centerId: centerId,
+      centerName: '',
+      createdAt: DateTime.now(),
+    );
+    state = AsyncData([tempFavorite, ...current]);
+
     try {
       final deviceId = await ref.read(deviceIdProvider.future);
       final repository = ref.read(favoriteRepositoryProvider);
@@ -41,12 +52,16 @@ class FavoritesNotifier extends AsyncNotifier<List<Favorite>> {
         deviceId: deviceId,
         centerId: centerId,
       );
-      // 로컬 캐시에 바로 추가
-      final current = state.valueOrNull ?? [];
-      state = AsyncData([favorite, ...current]);
+      // API 응답으로 임시 객체 교체
+      final updated = state.valueOrNull ?? [];
+      state = AsyncData(
+        updated.map((f) => f.centerId == centerId ? favorite : f).toList(),
+      );
       return true;
     } catch (e) {
       debugPrint('즐겨찾기 추가 실패: $e');
+      // 실패 시 롤백
+      state = AsyncData(current);
       return false;
     }
   }

@@ -1,11 +1,11 @@
 class SearchFilter {
-  final String? q;           // 검색어
+  final String? q;           // 검색어 (지역명 포함)
   final double? lat;         // 위도
   final double? lng;         // 경도
   final double radiusKm;     // 반경 (기본 2)
   final String? type;        // 설립유형
-  final String? sidoCode;    // 시도 코드
-  final String? sggCode;     // 시군구 코드
+  final String? sidoCode;    // 시도 코드 (UI 표시용)
+  final String? sggCode;     // 시군구 코드 (UI 표시용)
   final String sort;         // 정렬 (distance/name)
 
   const SearchFilter({
@@ -51,23 +51,6 @@ class SearchFilter {
     );
   }
 
-  // 검색 쿼리 파라미터 생성
-  Map<String, dynamic> toQueryParams() {
-    final params = <String, dynamic>{
-      'radiusKm': radiusKm,
-      'sort': sort,
-    };
-
-    if (q != null && q!.isNotEmpty) params['q'] = q;
-    if (lat != null) params['lat'] = lat;
-    if (lng != null) params['lng'] = lng;
-    if (type != null && type!.isNotEmpty) params['type'] = type;
-    if (sidoCode != null && sidoCode!.isNotEmpty) params['sidoCode'] = sidoCode;
-    if (sggCode != null && sggCode!.isNotEmpty) params['sggCode'] = sggCode;
-
-    return params;
-  }
-
   bool get hasLocation => lat != null && lng != null;
   bool get hasQuery => q != null && q!.isNotEmpty;
   bool get hasType => type != null && type!.isNotEmpty;
@@ -96,5 +79,19 @@ class SearchFilter {
   @override
   int get hashCode {
     return Object.hash(q, lat, lng, radiusKm, type, sidoCode, sggCode, sort);
+  }
+
+  /// UI 대분류 → API 검색용 DB 정확값 변환
+  static String mapTypeToApi(String type) {
+    switch (type) {
+      case '국공립':
+        return '공립(단설),공립(병설)';
+      case '사립':
+        return '사립(사인)';
+      case '법인':
+        return '사립(법인)';
+      default:
+        return type;
+    }
   }
 }

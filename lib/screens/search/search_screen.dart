@@ -149,8 +149,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         selected: filter.type ?? '전체',
         onSelected: (value) {
           final type = value == '전체' ? null : value;
-          ref.read(searchFilterProvider.notifier).state =
-              filter.copyWith(type: type);
+          // copyWith은 null을 전달할 수 없으므로 직접 생성
+          ref.read(searchFilterProvider.notifier).state = SearchFilter(
+            q: filter.q,
+            lat: filter.lat,
+            lng: filter.lng,
+            radiusKm: filter.radiusKm,
+            type: type,
+            sidoCode: filter.sidoCode,
+            sggCode: filter.sggCode,
+            sort: filter.sort,
+          );
           Navigator.pop(context);
         },
       ),
@@ -217,8 +226,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           selectedSidoCode: filter.sidoCode,
           selectedSggCode: filter.sggCode,
           onSelected: (sidoCode, sggCode) {
-            ref.read(searchFilterProvider.notifier).state =
-                filter.copyWith(sidoCode: sidoCode, sggCode: sggCode);
+            // sidoCode/sggCode를 직접 전달 (백엔드에서 이름 변환)
+            ref.read(searchFilterProvider.notifier).state = SearchFilter(
+              q: filter.q,
+              lat: filter.lat,
+              lng: filter.lng,
+              radiusKm: filter.radiusKm,
+              type: filter.type,
+              sidoCode: sidoCode,
+              sggCode: sggCode,
+              sort: filter.sort,
+            );
             Navigator.pop(context);
           },
         ),

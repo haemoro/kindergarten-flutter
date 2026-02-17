@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'dart:math';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DeviceIdManager {
@@ -34,28 +34,17 @@ class DeviceIdManager {
   Future<String> _generateDeviceId() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
-      
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        return 'android_${androidInfo.fingerprint}_${_generateRandomSuffix()}';
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        return 'ios_${iosInfo.identifierForVendor ?? _generateRandomId()}_${_generateRandomSuffix()}';
-      } else if (Platform.isMacOS) {
-        final macInfo = await deviceInfo.macOsInfo;
-        return 'macos_${macInfo.systemGUID ?? _generateRandomId()}_${_generateRandomSuffix()}';
-      } else if (Platform.isWindows) {
-        final windowsInfo = await deviceInfo.windowsInfo;
-        return 'windows_${windowsInfo.deviceId}_${_generateRandomSuffix()}';
-      } else if (Platform.isLinux) {
-        final linuxInfo = await deviceInfo.linuxInfo;
-        return 'linux_${linuxInfo.machineId ?? _generateRandomId()}_${_generateRandomSuffix()}';
-      } else {
-        // 웹이나 기타 플랫폼
-        return 'web_${_generateRandomId()}_${_generateRandomSuffix()}';
+
+      if (kIsWeb) {
+        final webInfo = await deviceInfo.webBrowserInfo;
+        return 'web_${webInfo.userAgent?.hashCode ?? _generateRandomId()}_${_generateRandomSuffix()}';
       }
+
+      final info = await deviceInfo.deviceInfo;
+      final data = info.data;
+      final platform = data['systemName'] ?? data['board'] ?? 'unknown';
+      return '${platform}_${_generateRandomId()}_${_generateRandomSuffix()}';
     } catch (e) {
-      // 디바이스 정보 가져오기 실패 시 완전 랜덤 ID 생성
       return 'unknown_${_generateRandomId()}_${_generateRandomSuffix()}';
     }
   }
