@@ -15,10 +15,10 @@ class AppConstants {
   static const List<String> establishTypes = ['국공립', '사립', '법인'];
 
   // 정렬 옵션
-  static const List<String> sortOptions = ['distance', 'name'];
+  static const List<String> sortOptions = ['distance', 'name', 'capacity'];
 
-  // 지도 기본 줌 레벨
-  static const double defaultMapZoom = 15.0;
+  // 지도 기본 줌 레벨 (카카오맵: 1=가까움 ~ 14=멀리)
+  static const int defaultMapLevel = 3;
 
   // 비교 최대 개수
   static const int maxCompareCount = 4;

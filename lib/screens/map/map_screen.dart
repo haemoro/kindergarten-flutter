@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
@@ -21,16 +21,34 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  NaverMapController? _mapController;
+  KakaoMapController? _mapController;
   String? _selectedFilterType; // null = 전체
   Timer? _cameraDebounceTimer;
 
+  // 카카오맵 CustomOverlay 목록 (색상 마커용)
+  List<CustomOverlay> _overlays = [];
+  // overlayId → MapMarker 매핑 (오버레이 탭 시 데이터 조회용)
+  final Map<String, MapMarker> _markerDataMap = {};
+  // 선택된 마커 (바텀시트 표시용, ValueNotifier로 KakaoMap 재빌드 방지)
+  final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
+
   // 기본 카메라 위치 (서울 시청)
-  static const NLatLng _defaultTarget = NLatLng(37.5666805, 126.9784147);
+  static final LatLng _defaultCenter = LatLng(37.5666805, 126.9784147);
+
+  /// 설립유형 색상으로 핀 SVG HTML을 생성
+  static String _buildOverlayContent(String hexColor) {
+    return '<div style="cursor:pointer;line-height:0;">'
+        '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">'
+        '<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 28 18 28s18-14.5 18-28C36 8.06 27.94 0 18 0z" fill="#$hexColor"/>'
+        '<circle cx="18" cy="18" r="8" fill="white"/>'
+        '</svg>'
+        '</div>';
+  }
 
   @override
   void dispose() {
     _cameraDebounceTimer?.cancel();
+    _selectedMarkerNotifier.dispose();
     super.dispose();
   }
 
@@ -43,7 +61,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
     } catch (e) {
       // 위치 권한 없어도 기본 위치에서 마커 로드
-      _loadMarkers(_defaultTarget.latitude, _defaultTarget.longitude);
+      _loadMarkers(_defaultCenter.latitude, _defaultCenter.longitude);
     }
   }
 
@@ -58,71 +76,65 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         type: _selectedFilterType,
       )).future);
 
-      final overlays = <NMarker>[];
-
-      for (final markerData in markersData) {
-        final marker = NMarker(
-          id: markerData.id,
-          position: NLatLng(markerData.lat, markerData.lng),
-          iconTintColor: _getMarkerColor(markerData.establishType),
-        );
-        marker.setOnTapListener((overlay) {
-          _onMarkerTapped(markerData);
-        });
-        overlays.add(marker);
+      // 디버그: API에서 내려오는 실제 establishType 값 확인
+      if (markersData.isNotEmpty) {
+        final types = markersData.map((m) => m.establishType).toSet();
+        debugPrint('📍 마커 데이터 establishType 종류: $types (필터: $_selectedFilterType)');
       }
 
-      await _mapController!.clearOverlays();
-      await _mapController!.addOverlayAll(overlays.toSet());
+      // 클라이언트 사이드 필터링 (백엔드 미지원 대비)
+      final filtered = _selectedFilterType != null
+          ? markersData
+              .where((m) => m.establishType.contains(_selectedFilterType!))
+              .toList()
+          : markersData;
+      debugPrint('📍 전체: ${markersData.length}개, 필터 후: ${filtered.length}개');
+
+      final newOverlays = <CustomOverlay>[];
+      final newDataMap = <String, MapMarker>{};
+
+      // 프라이머리 색상 (3549FF) 고정
+      const primaryHex = '3549FF';
+
+      for (final markerData in filtered) {
+        final overlay = CustomOverlay(
+          customOverlayId: markerData.id,
+          latLng: LatLng(markerData.lat, markerData.lng),
+          content: _buildOverlayContent(primaryHex),
+          xAnchor: 0.5,
+          yAnchor: 1.0,
+        );
+        newOverlays.add(overlay);
+        newDataMap[markerData.id] = markerData;
+      }
+
+      setState(() {
+        _overlays = newOverlays;
+        _markerDataMap
+          ..clear()
+          ..addAll(newDataMap);
+      });
     } catch (e) {
       debugPrint('마커 로드 실패: $e');
     }
   }
 
-  Color _getMarkerColor(String establishType) {
-    switch (establishType) {
-      case '국공립':
-      case '공립(병설)':
-        return AppColors.markerPublic;
-      case '사립':
-      case '사립(사인)':
-        return AppColors.markerPrivate;
-      case '법인':
-      case '사립(법인)':
-        return AppColors.markerCorporation;
-      default:
-        return AppColors.markerOther;
+  void _onOverlayTapped(String customOverlayId, LatLng latLng) {
+    final markerData = _markerDataMap[customOverlayId];
+    if (markerData != null) {
+      _selectedMarkerNotifier.value = markerData;
     }
   }
 
-  void _onMarkerTapped(MapMarker kindergarten) {
-    _showBottomSheet(kindergarten);
-  }
-
-  void _showBottomSheet(MapMarker kindergarten) {
-    showModalBottomSheet(
-      context: context,
-      builder: (sheetContext) => MarkerBottomSheet(
-        kindergarten: kindergarten,
-        onDetailPressed: () {
-          Navigator.pop(sheetContext);
-          context.push('/detail/${kindergarten.id}');
-        },
-      ),
-    );
+  void _closeBottomSheet() {
+    _selectedMarkerNotifier.value = null;
   }
 
   Future<void> _moveToPosition(Position position) async {
     if (_mapController == null) return;
-
-    final cameraUpdate = NCameraUpdate.withParams(
-      target: NLatLng(position.latitude, position.longitude),
-      zoom: AppConstants.defaultMapZoom,
-    )..setAnimation(
-        animation: NCameraAnimation.easing,
-        duration: const Duration(milliseconds: 500),
-      );
-    await _mapController!.updateCamera(cameraUpdate);
+    await _mapController!.panTo(
+      LatLng(position.latitude, position.longitude),
+    );
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -156,12 +168,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _reloadMarkersAtCurrentPosition() async {
     if (_mapController == null) return;
-    final bounds = await _mapController!.getContentBounds();
-    final centerLat =
-        (bounds.northEast.latitude + bounds.southWest.latitude) / 2;
-    final centerLng =
-        (bounds.northEast.longitude + bounds.southWest.longitude) / 2;
-    _loadMarkers(centerLat, centerLng);
+    final center = await _mapController!.getCenter();
+    _loadMarkers(center.latitude, center.longitude);
   }
 
   @override
@@ -191,12 +199,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     final currentPositionAsync = ref.watch(currentPositionProvider);
 
-    final initialTarget = currentPositionAsync.when(
+    final initialCenter = currentPositionAsync.when(
       data: (position) => position != null
-          ? NLatLng(position.latitude, position.longitude)
-          : _defaultTarget,
-      loading: () => _defaultTarget,
-      error: (_, __) => _defaultTarget,
+          ? LatLng(position.latitude, position.longitude)
+          : _defaultCenter,
+      loading: () => _defaultCenter,
+      error: (_, __) => _defaultCenter,
     );
 
     return Scaffold(
@@ -218,24 +226,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       body: Stack(
         children: [
           // 지도
-          NaverMap(
-            options: NaverMapViewOptions(
-              initialCameraPosition: NCameraPosition(
-                target: initialTarget,
-                zoom: AppConstants.defaultMapZoom,
-              ),
-              locationButtonEnable: false,
-              zoomGesturesFriction: 0.0,
-            ),
-            onMapReady: (NaverMapController controller) {
+          KakaoMap(
+            center: initialCenter,
+            currentLevel: AppConstants.defaultMapLevel,
+            customOverlays: _overlays,
+            onMapCreated: (KakaoMapController controller) {
               _mapController = controller;
               _requestLocationAndLoadMarkers();
             },
-            onCameraIdle: () {
+            onCustomOverlayTap: _onOverlayTapped,
+            onCameraIdle: (LatLng latLng, int zoomLevel) {
               _cameraDebounceTimer?.cancel();
               _cameraDebounceTimer = Timer(
                 AppConstants.mapCameraDebounceTime,
-                () => _reloadMarkersAtCurrentPosition(),
+                () => _loadMarkers(latLng.latitude, latLng.longitude),
               );
             },
           ),
@@ -292,6 +296,32 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               ),
             ),
+          ),
+
+          // 마커 선택 시 바텀시트 (ValueNotifier로 KakaoMap 재빌드 없이 표시)
+          ValueListenableBuilder<MapMarker?>(
+            valueListenable: _selectedMarkerNotifier,
+            builder: (context, selectedMarker, _) {
+              if (selectedMarker == null) {
+                return const SizedBox.shrink();
+              }
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: Material(
+                  elevation: 8,
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16)),
+                  child: MarkerBottomSheet(
+                    kindergarten: selectedMarker,
+                    onClose: _closeBottomSheet,
+                    onDetailPressed: () {
+                      _closeBottomSheet();
+                      context.push('/detail/${selectedMarker.id}');
+                    },
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

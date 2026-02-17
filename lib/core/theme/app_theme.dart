@@ -152,7 +152,7 @@ class AppTheme {
       ),
     ),
 
-    // Bottom Navigation Bar Theme
+    // Bottom Navigation Bar Theme (legacy, kept for compatibility)
     bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.surface,
       selectedItemColor: AppColors.primary,
@@ -167,6 +167,37 @@ class AppTheme {
         fontSize: 12,
         fontWeight: FontWeight.w400,
       ),
+    ),
+
+    // Navigation Bar Theme (Material 3)
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.surface,
+      elevation: 0,
+      height: 64,
+      indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const IconThemeData(color: AppColors.primary, size: 24);
+        }
+        return const IconThemeData(color: AppColors.gray500, size: 24);
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return GoogleFonts.workSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+          );
+        }
+        return GoogleFonts.workSans(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: AppColors.gray500,
+        );
+      }),
     ),
 
     // Tab Bar Theme
@@ -412,6 +443,37 @@ class AppTheme {
           fontSize: 12,
           fontWeight: FontWeight.w400,
         ),
+      ),
+
+      // Navigation Bar Theme (Material 3)
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: darkSurface,
+        elevation: 0,
+        height: 64,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primary, size: 24);
+          }
+          return const IconThemeData(color: AppColors.gray500, size: 24);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.workSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            );
+          }
+          return GoogleFonts.workSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: AppColors.gray500,
+          );
+        }),
       ),
 
       tabBarTheme: TabBarThemeData(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_decorations.dart';
 import '../core/utils/establish_type_helper.dart';
@@ -9,11 +10,15 @@ import 'badge_chip.dart';
 class KindergartenCompactCard extends StatelessWidget {
   final KindergartenSearch kindergarten;
   final VoidCallback? onTap;
+  final bool isFavorite;
+  final VoidCallback? onFavoriteToggle;
 
   const KindergartenCompactCard({
     super.key,
     required this.kindergarten,
     this.onTap,
+    this.isFavorite = false,
+    this.onFavoriteToggle,
   });
 
   @override
@@ -21,7 +26,7 @@ class KindergartenCompactCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 220,
+        width: 200,
         margin: const EdgeInsets.only(right: 12),
         decoration: AppDecorations.cardDecoration(),
         child: Column(
@@ -40,18 +45,38 @@ class KindergartenCompactCard extends StatelessWidget {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Name
-                    Text(
-                      kindergarten.name,
-                      style: AppTextStyles.kindergartenName.copyWith(fontSize: 14),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    // Name + Favorite heart
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            kindergarten.name,
+                            style: AppTextStyles.kindergartenName.copyWith(fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (onFavoriteToggle != null)
+                          GestureDetector(
+                            onTap: onFavoriteToggle,
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(
+                                isFavorite ? Icons.favorite : Icons.favorite_border,
+                                size: 18,
+                                color: isFavorite ? AppColors.favoriteActive : AppColors.gray400,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     // Badge + distance
                     Row(
                       children: [
@@ -60,7 +85,7 @@ class KindergartenCompactCard extends StatelessWidget {
                           establishType: kindergarten.establishType,
                         ),
                         if (kindergarten.formattedDistance.isNotEmpty) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             kindergarten.formattedDistance,
                             style: AppTextStyles.distanceText,
@@ -68,13 +93,35 @@ class KindergartenCompactCard extends StatelessWidget {
                         ],
                       ],
                     ),
-                    const Spacer(),
-                    // Capacity
+                    const SizedBox(height: 4),
+                    // Capacity / current enrollment
                     Text(
-                      '정원 ${kindergarten.capacity}명 / 현원 ${kindergarten.currentEnrollment}명',
+                      '정원 ${kindergarten.capacity}명 | 현원 ${kindergarten.currentEnrollment}명',
                       style: AppTextStyles.caption,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    // Address
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on,
+                          size: 12,
+                          color: AppColors.gray500,
+                        ),
+                        const SizedBox(width: 2),
+                        Expanded(
+                          child: Text(
+                            kindergarten.address,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.gray500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     // Service badges
