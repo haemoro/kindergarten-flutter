@@ -31,7 +31,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final Map<String, MapMarker> _markerDataMap = {};
   final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
   String? _selectedMarkerId;
-  static const double _radiusKm = 5.0;
+  static const double _radiusKm = AppConstants.mapRadius;
   LatLng? _lastMapCenter;
   LatLng? _lastLoadedCenter;
   bool _mapReady = false;
@@ -61,9 +61,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // 검색에서 "지도에서 보기" 감지
     ref.listenManual(mapFocusLocationProvider, (prev, next) {
       if (next != null && _mapReady && _mapController != null) {
-        ref.read(mapFocusLocationProvider.notifier).state = null;
-        _mapController!.panTo(LatLng(next.lat, next.lng));
-        _loadMarkersAndUpdateAddress(next.lat, next.lng);
+        final loc = next;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(mapFocusLocationProvider.notifier).state = null;
+          _mapController?.panTo(LatLng(loc.lat, loc.lng));
+          _loadMarkersAndUpdateAddress(loc.lat, loc.lng);
+        });
       }
     });
   }
@@ -557,10 +560,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  /// 두 좌표가 의미 있게 이동했는지 (약 200m 이상)
   bool _hasMoved(LatLng a, LatLng b) {
-    const threshold = 0.002; // ~200m
-    return (a.latitude - b.latitude).abs() > threshold ||
-        (a.longitude - b.longitude).abs() > threshold;
+    return (a.latitude - b.latitude).abs() > AppConstants.mapMoveThreshold ||
+        (a.longitude - b.longitude).abs() > AppConstants.mapMoveThreshold;
   }
 }

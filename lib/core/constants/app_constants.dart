@@ -15,10 +15,22 @@ class AppConstants {
   static const List<String> establishTypes = ['국공립', '사립', '법인'];
 
   // 정렬 옵션
-  static const List<String> sortOptions = ['distance', 'name', 'capacity'];
+  static const Map<String, String> sortLabels = {
+    'distance': '거리순',
+    'name': '이름순',
+    'enrollment': '원아수순',
+    'occupancyRate': '재원률순',
+    'capacity': '정원순',
+  };
 
   // 지도 기본 줌 레벨 (카카오맵: 1=가까움 ~ 14=멀리)
   static const int defaultMapLevel = 3;
+
+  // 지도 반경 (km)
+  static const double mapRadius = 5.0;
+
+  // 지도 카메라 이동 감지 임계값 (~200m)
+  static const double mapMoveThreshold = 0.002;
 
   // 비교 최대 개수
   static const int maxCompareCount = 4;

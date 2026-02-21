@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_decorations.dart';
+import '../../models/favorite.dart';
 import '../../providers/favorite_providers.dart';
 import '../../providers/kindergarten_providers.dart';
+import '../../core/utils/date_formatter.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/shimmer_loading.dart';
@@ -135,7 +137,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '${_formatDate(favorite.createdAt)} 추가',
+                                          '${formatDate(favorite.createdAt)} 추가',
                                           style: AppTextStyles.caption,
                                         ),
                                       ],
@@ -267,7 +269,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     });
   }
 
-  Future<bool?> _confirmDelete(favorite) async {
+  Future<bool?> _confirmDelete(Favorite favorite) async {
     return showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -314,7 +316,4 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     context.push('/compare');
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
-  }
 }

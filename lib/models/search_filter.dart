@@ -1,3 +1,5 @@
+const _sentinel = Object();
+
 class SearchFilter {
   final String? q;           // 검색어 (지역명 포함)
   final double? lat;         // 위도
@@ -19,24 +21,26 @@ class SearchFilter {
     this.sort = 'distance',
   });
 
+  /// nullable 필드를 명시적으로 null로 설정 가능한 copyWith.
+  /// 예: `filter.copyWith(type: null)` → type을 null로 설정
   SearchFilter copyWith({
-    String? q,
-    double? lat,
-    double? lng,
+    Object? q = _sentinel,
+    Object? lat = _sentinel,
+    Object? lng = _sentinel,
     double? radiusKm,
-    String? type,
-    String? sidoCode,
-    String? sggCode,
+    Object? type = _sentinel,
+    Object? sidoCode = _sentinel,
+    Object? sggCode = _sentinel,
     String? sort,
   }) {
     return SearchFilter(
-      q: q ?? this.q,
-      lat: lat ?? this.lat,
-      lng: lng ?? this.lng,
+      q: q == _sentinel ? this.q : q as String?,
+      lat: lat == _sentinel ? this.lat : lat as double?,
+      lng: lng == _sentinel ? this.lng : lng as double?,
       radiusKm: radiusKm ?? this.radiusKm,
-      type: type ?? this.type,
-      sidoCode: sidoCode ?? this.sidoCode,
-      sggCode: sggCode ?? this.sggCode,
+      type: type == _sentinel ? this.type : type as String?,
+      sidoCode: sidoCode == _sentinel ? this.sidoCode : sidoCode as String?,
+      sggCode: sggCode == _sentinel ? this.sggCode : sggCode as String?,
       sort: sort ?? this.sort,
     );
   }

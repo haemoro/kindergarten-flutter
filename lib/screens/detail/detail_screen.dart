@@ -10,6 +10,7 @@ import '../../models/kindergarten_detail.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../providers/favorite_providers.dart';
 import '../../providers/location_providers.dart';
+import '../../core/utils/date_formatter.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/badge_chip.dart';
 import 'widgets/education_tab.dart';
@@ -190,7 +191,7 @@ class DetailScreen extends ConsumerWidget {
                             _InfoRow(
                               icon: Icons.calendar_today,
                               label: '개원일',
-                              value: _formatDate(kindergarten.openDate ?? kindergarten.establishDate!),
+                              value: formatDate(kindergarten.openDate ?? kindergarten.establishDate!),
                             ),
                           ],
                         ],
@@ -269,7 +270,7 @@ class DetailScreen extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '데이터 기준일: ${_formatDate(kindergarten.sourceUpdatedAt)}',
+                    '데이터 기준일: ${formatDate(kindergarten.sourceUpdatedAt)}',
                     style: AppTextStyles.caption,
                   ),
                   const SizedBox(height: 8),
@@ -344,10 +345,6 @@ class DetailScreen extends ConsumerWidget {
     }
     buffer.writeln('\n- 유치원 찾기 앱에서 공유');
     Share.share(buffer.toString(), subject: kindergarten.name);
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _launchPhone(String phone) async {

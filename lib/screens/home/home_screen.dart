@@ -10,6 +10,7 @@ import '../../providers/kindergarten_providers.dart';
 import '../../providers/location_providers.dart';
 import '../../providers/favorite_providers.dart';
 import '../../core/utils/establish_type_helper.dart';
+import '../../core/utils/date_formatter.dart';
 import '../../widgets/kindergarten_compact_card.dart';
 import '../../widgets/shimmer_loading.dart';
 
@@ -447,7 +448,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         style: AppTextStyles.kindergartenName,
                       ),
                       subtitle: Text(
-                        '${_formatDate(favorite.createdAt)} 추가',
+                        '${formatDate(favorite.createdAt)} 추가',
                         style: AppTextStyles.caption,
                       ),
                       trailing: const Icon(Icons.chevron_right),
@@ -496,9 +497,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
-  }
 }
 
 

@@ -69,11 +69,9 @@ class FavoritesNotifier extends AsyncNotifier<List<Favorite>> {
   /// 즐겨찾기 제거 (낙관적 업데이트)
   Future<bool> remove(String centerId) async {
     final current = state.valueOrNull ?? [];
-    final target = current.cast<Favorite?>().firstWhere(
-          (f) => f?.centerId == centerId,
-          orElse: () => null,
-        );
-    if (target == null) return false;
+    final index = current.indexWhere((f) => f.centerId == centerId);
+    if (index == -1) return false;
+    final target = current[index];
 
     // 로컬 캐시에서 먼저 제거 (빠른 UI 반영)
     state = AsyncData(current.where((f) => f.centerId != centerId).toList());

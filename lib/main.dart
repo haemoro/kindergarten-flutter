@@ -8,7 +8,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   AuthRepository.initialize(
-    appKey: '0a6efe42f1e9ada89baef04fe816a43a',
+    appKey: const String.fromEnvironment(
+      'KAKAO_MAP_KEY',
+      defaultValue: '0a6efe42f1e9ada89baef04fe816a43a',
+    ),
   );
 
   final onboardingDone = await isOnboardingComplete();

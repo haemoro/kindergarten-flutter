@@ -106,16 +106,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _debounceTimer?.cancel();
     _debounceTimer = Timer(AppConstants.searchDebounceTime, () {
       final currentFilter = ref.read(searchFilterProvider);
-      ref.read(searchFilterProvider.notifier).state = SearchFilter(
-        q: query.isEmpty ? null : query,
-        lat: currentFilter.lat,
-        lng: currentFilter.lng,
-        radiusKm: currentFilter.radiusKm,
-        type: currentFilter.type,
-        sidoCode: currentFilter.sidoCode,
-        sggCode: currentFilter.sggCode,
-        sort: currentFilter.sort,
-      );
+      ref.read(searchFilterProvider.notifier).state =
+          currentFilter.copyWith(q: query.isEmpty ? null : query);
     });
   }
 
@@ -123,15 +115,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _searchController.clear();
     _debounceTimer?.cancel();
     final currentFilter = ref.read(searchFilterProvider);
-    ref.read(searchFilterProvider.notifier).state = SearchFilter(
-      lat: currentFilter.lat,
-      lng: currentFilter.lng,
-      radiusKm: currentFilter.radiusKm,
-      type: currentFilter.type,
-      sidoCode: currentFilter.sidoCode,
-      sggCode: currentFilter.sggCode,
-      sort: currentFilter.sort,
-    );
+    ref.read(searchFilterProvider.notifier).state =
+        currentFilter.copyWith(q: null);
   }
 
   // --- 필터 바텀시트 ---
@@ -148,18 +133,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         options: ['전체', ...AppConstants.establishTypes],
         selected: filter.type ?? '전체',
         onSelected: (value) {
-          final type = value == '전체' ? null : value;
-          // copyWith은 null을 전달할 수 없으므로 직접 생성
-          ref.read(searchFilterProvider.notifier).state = SearchFilter(
-            q: filter.q,
-            lat: filter.lat,
-            lng: filter.lng,
-            radiusKm: filter.radiusKm,
-            type: type,
-            sidoCode: filter.sidoCode,
-            sggCode: filter.sggCode,
-            sort: filter.sort,
-          );
+          ref.read(searchFilterProvider.notifier).state =
+              filter.copyWith(type: value == '전체' ? null : value);
           Navigator.pop(context);
         },
       ),
@@ -168,13 +143,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   void _showSortFilter() {
     final filter = ref.read(searchFilterProvider);
-    const labels = {
-      'distance': '거리순',
-      'name': '이름순',
-      'enrollment': '원아수순',
-      'occupancyRate': '재원률순',
-      'capacity': '정원순',
-    };
+    final labels = AppConstants.sortLabels;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -211,17 +180,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           selectedSidoCode: filter.sidoCode,
           selectedSggCode: filter.sggCode,
           onSelected: (sidoCode, sggCode) {
-            // sidoCode/sggCode를 직접 전달 (백엔드에서 이름 변환)
-            ref.read(searchFilterProvider.notifier).state = SearchFilter(
-              q: filter.q,
-              lat: filter.lat,
-              lng: filter.lng,
-              radiusKm: filter.radiusKm,
-              type: filter.type,
-              sidoCode: sidoCode,
-              sggCode: sggCode,
-              sort: filter.sort,
-            );
+            ref.read(searchFilterProvider.notifier).state =
+                filter.copyWith(sidoCode: sidoCode, sggCode: sggCode);
             Navigator.pop(context);
           },
         ),
@@ -363,15 +323,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final regionsAsync = ref.read(regionsProvider);
     return regionsAsync.whenOrNull(
           data: (regionResponse) {
-            final region = regionResponse.regions
-                .cast<Region?>()
-                .firstWhere((r) => r?.sidoCode == filter.sidoCode, orElse: () => null);
-            if (region == null) return '지역';
+            final regions = regionResponse.regions;
+            final idx = regions.indexWhere((r) => r.sidoCode == filter.sidoCode);
+            if (idx == -1) return '지역';
+            final region = regions[idx];
             if (filter.sggCode != null) {
-              final sgg = region.sggList
-                  .cast<District?>()
-                  .firstWhere((d) => d?.sggCode == filter.sggCode, orElse: () => null);
-              if (sgg != null) return '${region.sidoName} ${sgg.sggName}';
+              final sggIdx = region.sggList.indexWhere((d) => d.sggCode == filter.sggCode);
+              if (sggIdx != -1) return '${region.sidoName} ${region.sggList[sggIdx].sggName}';
             }
             return region.sidoName;
           },
@@ -380,14 +338,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   String _getSortLabel(String sort) {
-    const labels = {
-      'distance': '거리순',
-      'name': '이름순',
-      'enrollment': '원아수순',
-      'occupancyRate': '재원률순',
-      'capacity': '정원순',
-    };
-    return labels[sort] ?? '거리순';
+    return AppConstants.sortLabels[sort] ?? '거리순';
   }
 
   Widget _buildSearchResults(PaginatedSearchState searchState) {
@@ -618,9 +569,10 @@ class _RegionFilterSheetState extends State<_RegionFilterSheet> {
     _sggCode = widget.selectedSggCode;
   }
 
-  Region? get _selectedRegion => widget.regions
-      .cast<Region?>()
-      .firstWhere((r) => r?.sidoCode == _sidoCode, orElse: () => null);
+  Region? get _selectedRegion {
+    final idx = widget.regions.indexWhere((r) => r.sidoCode == _sidoCode);
+    return idx == -1 ? null : widget.regions[idx];
+  }
 
   @override
   Widget build(BuildContext context) {
