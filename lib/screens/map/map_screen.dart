@@ -32,8 +32,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
   String? _selectedMarkerId;
   static const int _markerLimit = 20;
-  static const double _maxRadiusKm = 20.0;
-  int _currentZoomLevel = AppConstants.defaultMapLevel;
+  static const double _radiusKm = 3.0;
   LatLng? _lastMapCenter;
   LatLng? _lastLoadedCenter;
   bool _mapReady = false;
@@ -132,11 +131,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (_mapController == null) return;
 
     try {
-      final radiusKm = _zoomToRadiusKm(_currentZoomLevel);
       final markersData = await ref.read(mapMarkersProvider((
         lat: lat,
         lng: lng,
-        radiusKm: radiusKm,
+        radiusKm: _radiusKm,
         type: null,
         limit: _markerLimit,
       )).future);
@@ -380,7 +378,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             onCustomOverlayTap: _onOverlayTapped,
             onCameraIdle: (LatLng latLng, int zoomLevel) {
               _lastMapCenter = latLng;
-              _currentZoomLevel = zoomLevel;
               // 이전 로드 위치와 일정 거리 이상 차이나면 재검색 표시
               if (_lastLoadedCenter != null) {
                 final moved = _hasMoved(_lastLoadedCenter!, latLng);
@@ -575,20 +572,4 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         (a.longitude - b.longitude).abs() > AppConstants.mapMoveThreshold;
   }
 
-  /// 카카오맵 줌 레벨 → 대략적인 반경(km) 변환
-  /// 카카오맵 level: 1(가까움) ~ 14(멀리)
-  double _zoomToRadiusKm(int zoomLevel) {
-    const Map<int, double> zoomRadiusMap = {
-      1: 0.1,
-      2: 0.3,
-      3: 0.5,
-      4: 1.0,
-      5: 2.0,
-      6: 4.0,
-      7: 8.0,
-      8: 16.0,
-    };
-    final radius = zoomRadiusMap[zoomLevel] ?? (0.1 * (1 << zoomLevel));
-    return radius.clamp(0.1, _maxRadiusKm);
-  }
 }
