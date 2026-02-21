@@ -6,7 +6,7 @@ class SearchFilter {
   final String? type;        // 설립유형
   final String? sidoCode;    // 시도 코드 (UI 표시용)
   final String? sggCode;     // 시군구 코드 (UI 표시용)
-  final String sort;         // 정렬 (distance/name)
+  final String sort;         // 정렬 (distance/name/enrollment/occupancyRate/capacity)
 
   const SearchFilter({
     this.q,

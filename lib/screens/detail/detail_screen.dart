@@ -9,6 +9,7 @@ import '../../core/theme/app_decorations.dart';
 import '../../models/kindergarten_detail.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../providers/favorite_providers.dart';
+import '../../providers/location_providers.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/badge_chip.dart';
 import 'widgets/education_tab.dart';
@@ -274,9 +275,9 @@ class DetailScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('지도 화면 구현 예정')),
-                      );
+                      ref.read(mapFocusLocationProvider.notifier).state =
+                          (lat: kindergarten.lat, lng: kindergarten.lng);
+                      context.go('/map');
                     },
                     child: Container(
                       width: double.infinity,

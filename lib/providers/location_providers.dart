@@ -37,3 +37,6 @@ final locationServiceEnabledProvider = FutureProvider<bool>((ref) async {
   final service = ref.read(locationServiceProvider);
   return await service.isLocationServiceEnabled();
 });
+
+// 지도 포커스 위치 (검색 → 지도 탭 이동 시 사용)
+final mapFocusLocationProvider = StateProvider<({double lat, double lng})?>((ref) => null);

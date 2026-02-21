@@ -10,6 +10,7 @@ class KindergartenListTile extends StatelessWidget {
   final KindergartenSearch kindergarten;
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteToggle;
+  final VoidCallback? onMapView;
   final bool isFavorite;
 
   const KindergartenListTile({
@@ -17,6 +18,7 @@ class KindergartenListTile extends StatelessWidget {
     required this.kindergarten,
     this.onTap,
     this.onFavoriteToggle,
+    this.onMapView,
     this.isFavorite = false,
   });
 
@@ -25,7 +27,7 @@ class KindergartenListTile extends StatelessWidget {
     final typeColor = EstablishTypeHelper.getColor(kindergarten.establishType);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: AppDecorations.cardDecoration(),
       child: InkWell(
         onTap: onTap,
@@ -47,24 +49,25 @@ class KindergartenListTile extends StatelessWidget {
               // Content
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header (name + badge + favorite)
+                      // Row 1: name + badge + favorite
                       Row(
                         children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Text(
-                                  kindergarten.name,
-                                  style: AppTextStyles.kindergartenName,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                Flexible(
+                                  child: Text(
+                                    kindergarten.name,
+                                    style: AppTextStyles.kindergartenName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(width: 6),
                                 BadgeChip.establishType(
                                   label: kindergarten.establishType,
                                   establishType: kindergarten.establishType,
@@ -73,39 +76,44 @@ class KindergartenListTile extends StatelessWidget {
                             ),
                           ),
                           if (onFavoriteToggle != null)
-                            IconButton(
-                              onPressed: onFavoriteToggle,
-                              icon: Icon(
-                                isFavorite ? Icons.favorite : Icons.favorite_border,
-                                color: isFavorite
-                                    ? AppColors.favoriteActive
-                                    : AppColors.favoriteInactive,
+                            GestureDetector(
+                              onTap: onFavoriteToggle,
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Icon(
+                                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                                  size: 20,
+                                  color: isFavorite
+                                      ? AppColors.favoriteActive
+                                      : AppColors.favoriteInactive,
+                                ),
                               ),
                             ),
                         ],
                       ),
 
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 6),
 
-                      // Address
+                      // Row 2: address + distance
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.location_on,
-                            size: 16,
+                            size: 14,
                             color: AppColors.gray500,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 3),
                           Expanded(
                             child: Text(
                               kindergarten.address,
-                              style: AppTextStyles.kindergartenAddress,
+                              style: AppTextStyles.caption.copyWith(color: AppColors.gray600),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (kindergarten.distanceKm != null) ...[
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Text(
                               kindergarten.formattedDistance,
                               style: AppTextStyles.distanceText,
@@ -114,62 +122,42 @@ class KindergartenListTile extends StatelessWidget {
                         ],
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
 
-                      // Phone
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.phone,
-                            size: 16,
-                            color: AppColors.gray500,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            kindergarten.phone,
-                            style: AppTextStyles.kindergartenAddress,
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // Capacity info
+                      // Row 3: capacity + service badges + map
                       Row(
                         children: [
                           Text(
-                            '정원: ${kindergarten.capacity}명',
-                            style: AppTextStyles.body2,
+                            '정원 ${kindergarten.capacity} · 현원 ${kindergarten.currentEnrollment} · ${(kindergarten.occupancyRate * 100).toStringAsFixed(0)}%',
+                            style: AppTextStyles.caption.copyWith(color: AppColors.gray500),
                           ),
-                          const SizedBox(width: 16),
-                          Text(
-                            '현원: ${kindergarten.currentEnrollment}명',
-                            style: AppTextStyles.body2,
-                          ),
-                          const SizedBox(width: 16),
-                          Text(
-                            '학급: ${kindergarten.totalClassCount}개',
-                            style: AppTextStyles.body2,
-                          ),
+                          const Spacer(),
+                          if (onMapView != null)
+                            GestureDetector(
+                              onTap: onMapView,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.map_outlined, size: 13, color: AppColors.primary),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '지도',
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
 
-                      // Occupancy rate bar
-                      if (kindergarten.capacity > 0) ...[
-                        const SizedBox(height: 10),
-                        _OccupancyBar(rate: kindergarten.occupancyRate),
-                        const SizedBox(height: 4),
-                        Text(
-                          '재원률: ${(kindergarten.occupancyRate * 100).toStringAsFixed(1)}%',
-                          style: AppTextStyles.caption,
-                        ),
-                      ],
+                      const SizedBox(height: 6),
 
-                      const SizedBox(height: 12),
-
-                      // Service badges
+                      // Row 4: service badges
                       Wrap(
-                        spacing: 8,
+                        spacing: 6,
                         runSpacing: 4,
                         children: [
                           if (kindergarten.mealProvided)
@@ -186,34 +174,6 @@ class KindergartenListTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Rounded gradient occupancy bar
-class _OccupancyBar extends StatelessWidget {
-  final double rate;
-
-  const _OccupancyBar({required this.rate});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = rate > 0.9
-        ? AppColors.error
-        : rate > 0.7
-            ? AppColors.warning
-            : AppColors.success;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        height: 6,
-        child: LinearProgressIndicator(
-          value: rate,
-          backgroundColor: AppColors.gray200,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
         ),
       ),
     );

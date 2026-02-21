@@ -168,7 +168,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   void _showSortFilter() {
     final filter = ref.read(searchFilterProvider);
-    const labels = {'distance': '거리순', 'name': '이름순', 'capacity': '정원순'};
+    const labels = {
+      'distance': '거리순',
+      'name': '이름순',
+      'enrollment': '원아수순',
+      'occupancyRate': '재원률순',
+      'capacity': '정원순',
+    };
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -374,7 +380,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   String _getSortLabel(String sort) {
-    const labels = {'distance': '거리순', 'name': '이름순', 'capacity': '정원순'};
+    const labels = {
+      'distance': '거리순',
+      'name': '이름순',
+      'enrollment': '원아수순',
+      'occupancyRate': '재원률순',
+      'capacity': '정원순',
+    };
     return labels[sort] ?? '거리순';
   }
 
@@ -439,6 +451,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           kindergarten: kindergarten,
           onTap: () => context.push('/detail/${kindergarten.id}'),
           onFavoriteToggle: () => toggleFavorite(ref, kindergarten.id),
+          onMapView: () {
+            ref.read(mapFocusLocationProvider.notifier).state =
+                (lat: kindergarten.lat, lng: kindergarten.lng);
+            context.go('/map');
+          },
           isFavorite: isFav,
         );
 

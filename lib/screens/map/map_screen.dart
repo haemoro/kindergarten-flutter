@@ -31,9 +31,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   final Map<String, MapMarker> _markerDataMap = {};
   final ValueNotifier<MapMarker?> _selectedMarkerNotifier = ValueNotifier(null);
   String? _selectedMarkerId;
-  double _radiusKm = AppConstants.defaultRadius;
+  static const double _radiusKm = 5.0;
   LatLng? _lastMapCenter;
   LatLng? _lastLoadedCenter;
+  bool _mapReady = false;
 
   static final LatLng _defaultCenter = LatLng(37.5666805, 126.9784147);
 
@@ -55,12 +56,37 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // 검색에서 "지도에서 보기" 감지
+    ref.listenManual(mapFocusLocationProvider, (prev, next) {
+      if (next != null && _mapReady && _mapController != null) {
+        ref.read(mapFocusLocationProvider.notifier).state = null;
+        _mapController!.panTo(LatLng(next.lat, next.lng));
+        _loadMarkersAndUpdateAddress(next.lat, next.lng);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _selectedMarkerNotifier.dispose();
     super.dispose();
   }
 
   Future<void> _requestLocationAndLoadMarkers() async {
+    // 검색에서 "지도에서 보기"로 넘어온 경우
+    final focusLocation = ref.read(mapFocusLocationProvider);
+    if (focusLocation != null) {
+      ref.read(mapFocusLocationProvider.notifier).state = null;
+      if (_mapController != null) {
+        await _mapController!.panTo(
+            LatLng(focusLocation.lat, focusLocation.lng));
+      }
+      _loadMarkersAndUpdateAddress(focusLocation.lat, focusLocation.lng);
+      return;
+    }
+
     try {
       final position = await ref.read(currentPositionProvider.future);
       if (position != null && _mapController != null) {
@@ -341,6 +367,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             customOverlays: _overlays,
             onMapCreated: (KakaoMapController controller) {
               _mapController = controller;
+              _mapReady = true;
               _requestLocationAndLoadMarkers();
             },
             onCustomOverlayTap: _onOverlayTapped,
@@ -425,99 +452,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
           ),
 
-          // 반경 선택 칩
-          if (!_showList)
-            Positioned(
-              top: safeTop + 56,
-              left: 16,
-              child: Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: AppConstants.radiusOptions.map((r) {
-                    final isSelected = _radiusKm == r;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _radiusKm = r);
-                        final center = _lastMapCenter ?? _lastLoadedCenter;
-                        if (center != null) {
-                          _loadMarkersAndUpdateAddress(
-                              center.latitude, center.longitude);
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${r.toInt()}km',
-                          style: AppTextStyles.caption.copyWith(
-                            color:
-                                isSelected ? Colors.white : AppColors.gray600,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w400,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-
-          // 줌 컨트롤
-          if (!_showList)
-            Positioned(
-              top: safeTop + 56,
-              right: 16,
-              child: Column(
-                children: [
-                  _ZoomButton(
-                    icon: Icons.add,
-                    onTap: () async {
-                      if (_mapController == null) return;
-                      final level = await _mapController!.getLevel();
-                      _mapController!.setLevel(level - 1);
-                    },
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(8)),
-                  ),
-                  Container(height: 1, width: 36, color: AppColors.gray200),
-                  _ZoomButton(
-                    icon: Icons.remove,
-                    onTap: () async {
-                      if (_mapController == null) return;
-                      final level = await _mapController!.getLevel();
-                      _mapController!.setLevel(level + 1);
-                    },
-                    borderRadius:
-                        const BorderRadius.vertical(bottom: Radius.circular(8)),
-                  ),
-                ],
-              ),
-            ),
-
           // "현 지도에서 재검색" 버튼
           if (_needsResearch && !_showList)
             Positioned(
-              top: safeTop + 96,
+              top: safeTop + 56,
               left: 0,
               right: 0,
               child: Center(
@@ -574,7 +512,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // 유치원 목록 패널
           if (_showList)
             Positioned(
-              top: safeTop + 56,
+              top: safeTop + 52,
               left: 0,
               right: 0,
               bottom: 0,
@@ -624,35 +562,5 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     const threshold = 0.002; // ~200m
     return (a.latitude - b.latitude).abs() > threshold ||
         (a.longitude - b.longitude).abs() > threshold;
-  }
-}
-
-class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  final BorderRadius borderRadius;
-
-  const _ZoomButton({
-    required this.icon,
-    required this.onTap,
-    required this.borderRadius,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: borderRadius,
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: borderRadius,
-        child: SizedBox(
-          width: 36,
-          height: 36,
-          child: Icon(icon, size: 20, color: AppColors.gray600),
-        ),
-      ),
-    );
   }
 }

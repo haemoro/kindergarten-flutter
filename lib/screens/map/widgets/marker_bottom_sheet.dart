@@ -21,7 +21,7 @@ class MarkerBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -42,7 +42,7 @@ class MarkerBottomSheet extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
           // 유치원 이름 + 유형 배지 + 닫기
           Row(
@@ -134,10 +134,9 @@ class MarkerBottomSheet extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    onClose?.call();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('길찾기 기능 구현 예정')),
-                    );
+                    final url = Uri.parse(
+                        'https://map.kakao.com/link/to/${kindergarten.name},${kindergarten.lat},${kindergarten.lng}');
+                    launchUrl(url, mode: LaunchMode.externalApplication);
                   },
                   icon: const Icon(Icons.directions),
                   label: const Text('길찾기'),
