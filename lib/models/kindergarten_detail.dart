@@ -247,6 +247,8 @@ class SafetySection {
   final int cctvTotal;
   final String schoolSafetyEnrolled;
   final String educationFacilityEnrolled;
+  final List<SafetyEducation> safetyEducations;
+  final List<InsuranceDetail> insurances;
 
   const SafetySection({
     required this.airQualityCheck,
@@ -262,6 +264,8 @@ class SafetySection {
     required this.cctvTotal,
     required this.schoolSafetyEnrolled,
     required this.educationFacilityEnrolled,
+    this.safetyEducations = const [],
+    this.insurances = const [],
   });
 
   factory SafetySection.fromJson(Map<String, dynamic> json) {
@@ -279,8 +283,91 @@ class SafetySection {
       cctvTotal: json['cctvTotal'] ?? 0,
       schoolSafetyEnrolled: json['schoolSafetyEnrolled'] ?? '',
       educationFacilityEnrolled: json['educationFacilityEnrolled'] ?? '',
+      safetyEducations: (json['safetyEducations'] as List<dynamic>?)
+              ?.map((e) => SafetyEducation.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      insurances: (json['insurances'] as List<dynamic>?)
+              ?.map((e) => InsuranceDetail.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
+}
+
+class SafetyEducation {
+  final String? semester;
+  final String? lifeSafety;
+  final String? trafficSafety;
+  final String? violencePrevention;
+  final String? drugPrevention;
+  final String? cyberPrevention;
+  final String? disasterSafety;
+  final String? occupationalSafety;
+  final String? firstAid;
+
+  const SafetyEducation({
+    this.semester,
+    this.lifeSafety,
+    this.trafficSafety,
+    this.violencePrevention,
+    this.drugPrevention,
+    this.cyberPrevention,
+    this.disasterSafety,
+    this.occupationalSafety,
+    this.firstAid,
+  });
+
+  factory SafetyEducation.fromJson(Map<String, dynamic> json) {
+    return SafetyEducation(
+      semester: json['semester'],
+      lifeSafety: json['lifeSafety'],
+      trafficSafety: json['trafficSafety'],
+      violencePrevention: json['violencePrevention'],
+      drugPrevention: json['drugPrevention'],
+      cyberPrevention: json['cyberPrevention'],
+      disasterSafety: json['disasterSafety'],
+      occupationalSafety: json['occupationalSafety'],
+      firstAid: json['firstAid'],
+    );
+  }
+
+  List<(String, String?)> get educationItems => [
+        ('생활안전', lifeSafety),
+        ('교통안전', trafficSafety),
+        ('폭력예방', violencePrevention),
+        ('약물오남용', drugPrevention),
+        ('사이버안전', cyberPrevention),
+        ('재난안전', disasterSafety),
+        ('직업안전', occupationalSafety),
+        ('응급처치', firstAid),
+      ];
+}
+
+class InsuranceDetail {
+  final String? insuranceName;
+  final String? targetYn;
+  final String? enrolledYn;
+  final String? company;
+
+  const InsuranceDetail({
+    this.insuranceName,
+    this.targetYn,
+    this.enrolledYn,
+    this.company,
+  });
+
+  factory InsuranceDetail.fromJson(Map<String, dynamic> json) {
+    return InsuranceDetail(
+      insuranceName: json['insuranceName'],
+      targetYn: json['targetYn'],
+      enrolledYn: json['enrolledYn'],
+      company: json['company'],
+    );
+  }
+
+  bool get isEnrolled => enrolledYn == 'Y' || enrolledYn == '가입';
+  bool get isTarget => targetYn == 'Y' || targetYn == '대상';
 }
 
 class FacilitySection {

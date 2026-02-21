@@ -5,6 +5,8 @@ import '../models/kindergarten_search.dart';
 import '../models/kindergarten_detail.dart';
 import '../models/map_marker.dart';
 import '../models/compare_item.dart';
+import '../models/center_review.dart';
+import '../models/page_response.dart';
 import '../models/search_filter.dart';
 import '../core/constants/app_constants.dart';
 import 'location_providers.dart';
@@ -214,6 +216,12 @@ final compareResultProvider = FutureProvider.family<CompareResponse, ({List<Stri
 
 // 비교할 유치원 ID 목록 Provider
 final compareIdsProvider = StateProvider<List<String>>((ref) => []);
+
+// 유치원 리뷰 Provider
+final kindergartenReviewsProvider = FutureProvider.family<PageResponse<CenterReview>, String>((ref, id) async {
+  final repository = ref.read(kindergartenRepositoryProvider);
+  return await repository.getReviews(id);
+});
 
 // 홈 화면 주변 유치원 Provider (현위치 기반, 최대 10개)
 final nearbyKindergartensProvider = FutureProvider<List<KindergartenSearch>>((ref) async {

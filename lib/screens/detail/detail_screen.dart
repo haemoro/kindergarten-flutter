@@ -9,6 +9,7 @@ import '../../core/theme/app_decorations.dart';
 import '../../models/kindergarten_detail.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../providers/favorite_providers.dart';
+import '../../providers/recent_providers.dart';
 import '../../providers/location_providers.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../widgets/error_state.dart';
@@ -19,6 +20,7 @@ import 'widgets/safety_tab.dart';
 import 'widgets/facility_tab.dart';
 import 'widgets/teacher_tab.dart';
 import 'widgets/after_school_tab.dart';
+import 'widgets/review_tab.dart';
 
 class DetailScreen extends ConsumerWidget {
   final String id;
@@ -33,8 +35,14 @@ class DetailScreen extends ConsumerWidget {
     final kindergartenAsync = ref.watch(kindergartenDetailProvider(id));
 
     return kindergartenAsync.when(
-      data: (kindergarten) => DefaultTabController(
-        length: 6,
+      data: (kindergarten) {
+        // Track recently viewed
+        Future.microtask(() {
+          ref.read(recentViewedProvider.notifier).add(kindergarten.id, kindergarten.name);
+        });
+
+        return DefaultTabController(
+        length: 7,
         child: Scaffold(
           body: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -233,6 +241,7 @@ class DetailScreen extends ConsumerWidget {
                             Tab(text: '시설'),
                             Tab(text: '교사'),
                             Tab(text: '방과후'),
+                            Tab(text: '리뷰'),
                           ],
                         ),
                       ),
@@ -249,6 +258,7 @@ class DetailScreen extends ConsumerWidget {
                 FacilityTab(facility: kindergarten.facility),
                 TeacherTab(teacher: kindergarten.teacher),
                 AfterSchoolTab(afterSchool: kindergarten.afterSchool),
+                ReviewTab(kindergartenId: kindergarten.id),
               ],
             ),
           ),
@@ -303,7 +313,8 @@ class DetailScreen extends ConsumerWidget {
             ),
           ),
         ),
-      ),
+      );
+      },
       loading: () => Scaffold(
         appBar: AppBar(
           leading: IconButton(

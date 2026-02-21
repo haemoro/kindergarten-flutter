@@ -134,11 +134,141 @@ class SafetyTab extends StatelessWidget {
             ),
           ),
 
+          // 안전교육 프로그램
+          if (safety.safetyEducations.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSafetyEducationSection(),
+          ],
+
+          // 보험 상세
+          if (safety.insurances.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildInsuranceDetailSection(),
+          ],
+
           const SizedBox(height: 16),
 
           // 종합 안전 등급
           _buildSafetySummary(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSafetyEducationSection() {
+    return DetailSectionCard(
+      title: '안전교육 프로그램',
+      child: Column(
+        children: safety.safetyEducations.map((edu) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (edu.semester != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    edu.semester!,
+                    style: AppTextStyles.body2.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: edu.educationItems.map((item) {
+                  final (label, value) = item;
+                  final hasValue = value != null && value.isNotEmpty;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: hasValue
+                          ? AppColors.success.withValues(alpha: 0.1)
+                          : AppColors.gray100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: hasValue
+                            ? AppColors.success.withValues(alpha: 0.3)
+                            : AppColors.gray300,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          hasValue ? Icons.check_circle : Icons.remove_circle_outline,
+                          size: 14,
+                          color: hasValue ? AppColors.success : AppColors.gray400,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          label,
+                          style: AppTextStyles.caption.copyWith(
+                            color: hasValue ? AppColors.success : AppColors.gray500,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+              if (safety.safetyEducations.last != edu) const SizedBox(height: 12),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildInsuranceDetailSection() {
+    return DetailSectionCard(
+      title: '보험 상세',
+      child: Column(
+        children: safety.insurances.map((ins) {
+          final isEnrolled = ins.isEnrolled;
+          final statusColor = isEnrolled ? AppColors.success : AppColors.gray500;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  isEnrolled ? Icons.check_circle : Icons.cancel,
+                  size: 16,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ins.insuranceName ?? '',
+                        style: AppTextStyles.body2,
+                      ),
+                      if (ins.company != null)
+                        Text(
+                          ins.company!,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.gray500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Text(
+                  isEnrolled ? '가입' : '미가입',
+                  style: AppTextStyles.body2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }

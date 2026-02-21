@@ -6,6 +6,7 @@ import '../models/kindergarten_search.dart';
 import '../models/kindergarten_detail.dart';
 import '../models/map_marker.dart';
 import '../models/compare_item.dart';
+import '../models/center_review.dart';
 
 class KindergartenRepository {
   final Dio _dio = DioClient.instance.dio;
@@ -111,6 +112,26 @@ class KindergartenRepository {
       );
 
       return CompareResponse.fromJson(response.data);
+    } catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// 유치원 리뷰 목록
+  Future<PageResponse<CenterReview>> getReviews(
+    String id, {
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '${ApiConstants.kindergartensDetail}/$id/reviews',
+        queryParameters: {'page': page, 'size': size},
+      );
+      return PageResponse.fromJson(
+        response.data,
+        (json) => CenterReview.fromJson(json),
+      );
     } catch (e) {
       throw _handleError(e);
     }

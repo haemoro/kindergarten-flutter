@@ -9,6 +9,7 @@ import '../../core/constants/app_constants.dart';
 import '../../providers/kindergarten_providers.dart';
 import '../../providers/location_providers.dart';
 import '../../providers/favorite_providers.dart';
+import '../../providers/recent_providers.dart';
 import '../../core/utils/establish_type_helper.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../widgets/kindergarten_compact_card.dart';
@@ -81,9 +82,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: _buildEstablishTypeSection(context, ref),
               ),
 
-              // Favorites section - delay 600ms
+              // Recent viewed section - delay 500ms
               _FadeInSection(
-                delay: const Duration(milliseconds: 600),
+                delay: const Duration(milliseconds: 500),
+                child: _buildRecentViewedSection(context, ref),
+              ),
+
+              // Favorites section - delay 700ms
+              _FadeInSection(
+                delay: const Duration(milliseconds: 700),
                 child: _buildFavoritesSection(context, ref),
               ),
 
@@ -375,6 +382,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ).toList(),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentViewedSection(BuildContext context, WidgetRef ref) {
+    final recentItems = ref.watch(recentViewedProvider);
+    if (recentItems.isEmpty) return const SizedBox.shrink();
+
+    final displayItems = recentItems.take(5).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('최근 본 유치원'),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: displayItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final item = displayItems[index];
+                return ActionChip(
+                  avatar: const Icon(Icons.history, size: 16),
+                  label: Text(
+                    item.name,
+                    style: AppTextStyles.body2,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onPressed: () => context.push('/detail/${item.id}'),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
