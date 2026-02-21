@@ -142,28 +142,28 @@ class _MainNavigationScreen extends StatelessWidget {
             elevation: 0,
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
+                icon: Icon(Icons.home_outlined, semanticLabel: '홈'),
+                selectedIcon: Icon(Icons.home, semanticLabel: '홈'),
                 label: '홈',
               ),
               NavigationDestination(
-                icon: Icon(Icons.search_outlined),
-                selectedIcon: Icon(Icons.search),
+                icon: Icon(Icons.search_outlined, semanticLabel: '검색'),
+                selectedIcon: Icon(Icons.search, semanticLabel: '검색'),
                 label: '검색',
               ),
               NavigationDestination(
-                icon: Icon(Icons.map_outlined),
-                selectedIcon: Icon(Icons.map),
+                icon: Icon(Icons.map_outlined, semanticLabel: '지도'),
+                selectedIcon: Icon(Icons.map, semanticLabel: '지도'),
                 label: '지도',
               ),
               NavigationDestination(
-                icon: Icon(Icons.favorite_outline),
-                selectedIcon: Icon(Icons.favorite),
+                icon: Icon(Icons.favorite_outline, semanticLabel: '즐겨찾기'),
+                selectedIcon: Icon(Icons.favorite, semanticLabel: '즐겨찾기'),
                 label: '즐겨찾기',
               ),
               NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
+                icon: Icon(Icons.settings_outlined, semanticLabel: '설정'),
+                selectedIcon: Icon(Icons.settings, semanticLabel: '설정'),
                 label: '설정',
               ),
             ],

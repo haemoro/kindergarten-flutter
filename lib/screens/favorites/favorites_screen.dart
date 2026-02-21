@@ -143,35 +143,42 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  GestureDetector(
-                                    onTap: () => _toggleSelection(
-                                      favorite.centerId,
-                                      !isSelected,
-                                    ),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      width: 28,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: isSelected
-                                            ? AppColors.primary
-                                            : Colors.transparent,
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? AppColors.primary
-                                              : AppColors.gray400,
-                                          width: 2,
+                                  Semantics(
+                                    label: isSelected ? '비교 선택 해제' : '비교 선택',
+                                    button: true,
+                                    child: GestureDetector(
+                                      onTap: () => _toggleSelection(
+                                        favorite.centerId,
+                                        !isSelected,
+                                      ),
+                                      behavior: HitTestBehavior.opaque,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8),
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 200),
+                                          width: 28,
+                                          height: 28,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: isSelected
+                                                ? AppColors.primary
+                                                : Colors.transparent,
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? AppColors.primary
+                                                  : AppColors.gray400,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: isSelected
+                                              ? const Icon(
+                                                  Icons.check,
+                                                  size: 16,
+                                                  color: Colors.white,
+                                                )
+                                              : null,
                                         ),
                                       ),
-                                      child: isSelected
-                                          ? const Icon(
-                                              Icons.check,
-                                              size: 16,
-                                              color: Colors.white,
-                                            )
-                                          : null,
                                     ),
                                   ),
                                 ],

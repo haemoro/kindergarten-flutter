@@ -62,15 +62,19 @@ class KindergartenCompactCard extends StatelessWidget {
                           ),
                         ),
                         if (onFavoriteToggle != null)
-                          GestureDetector(
-                            onTap: onFavoriteToggle,
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 4),
-                              child: Icon(
-                                isFavorite ? Icons.favorite : Icons.favorite_border,
-                                size: 18,
-                                color: isFavorite ? AppColors.favoriteActive : AppColors.gray400,
+                          Semantics(
+                            label: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
+                            button: true,
+                            child: GestureDetector(
+                              onTap: onFavoriteToggle,
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: Icon(
+                                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                                  size: 18,
+                                  color: isFavorite ? AppColors.favoriteActive : AppColors.gray400,
+                                ),
                               ),
                             ),
                           ),

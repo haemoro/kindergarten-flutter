@@ -70,8 +70,8 @@ class MarkerBottomSheet extends StatelessWidget {
               IconButton(
                 onPressed: onClose,
                 icon: const Icon(Icons.close),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                tooltip: '닫기',
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
               ),
             ],
           ),

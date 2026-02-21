@@ -50,6 +50,7 @@ class DetailScreen extends ConsumerWidget {
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.share, color: Colors.white),
+                      tooltip: '공유하기',
                       onPressed: () => _shareKindergarten(kindergarten),
                     ),
                     Consumer(

@@ -135,7 +135,7 @@ class AppTextStyles {
   );
 
   static TextStyle get chipText => _workSans(
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: FontWeight.w500,
   );
 

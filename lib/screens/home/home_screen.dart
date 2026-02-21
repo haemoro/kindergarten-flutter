@@ -87,7 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: _buildFavoritesSection(context, ref),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 80),
             ],
           ),
         ),

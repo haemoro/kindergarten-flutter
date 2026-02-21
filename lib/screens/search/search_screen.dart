@@ -230,11 +230,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                       ),
                     ),
                     if (_searchController.text.isNotEmpty)
-                      GestureDetector(
-                        onTap: _clearSearch,
-                        child: const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Icon(Icons.close, color: AppColors.gray400, size: 20),
+                      Semantics(
+                        label: '검색어 삭제',
+                        button: true,
+                        child: GestureDetector(
+                          onTap: _clearSearch,
+                          child: const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Icon(Icons.close, color: AppColors.gray400, size: 20),
+                          ),
                         ),
                       )
                     else
@@ -248,7 +252,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
             // 필터 칩 가로스크롤
             SizedBox(
-              height: 36,
+              height: 40,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -385,7 +389,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 80),
       itemCount: kindergartens.length + (searchState.hasNextPage ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= kindergartens.length) {

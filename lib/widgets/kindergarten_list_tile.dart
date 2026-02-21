@@ -49,7 +49,7 @@ class KindergartenListTile extends StatelessWidget {
               // Content
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -76,17 +76,21 @@ class KindergartenListTile extends StatelessWidget {
                             ),
                           ),
                           if (onFavoriteToggle != null)
-                            GestureDetector(
-                              onTap: onFavoriteToggle,
-                              behavior: HitTestBehavior.opaque,
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 4),
-                                child: Icon(
-                                  isFavorite ? Icons.favorite : Icons.favorite_border,
-                                  size: 20,
-                                  color: isFavorite
-                                      ? AppColors.favoriteActive
-                                      : AppColors.favoriteInactive,
+                            Semantics(
+                              label: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
+                              button: true,
+                              child: GestureDetector(
+                                onTap: onFavoriteToggle,
+                                behavior: HitTestBehavior.opaque,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    isFavorite ? Icons.favorite : Icons.favorite_border,
+                                    size: 20,
+                                    color: isFavorite
+                                        ? AppColors.favoriteActive
+                                        : AppColors.favoriteInactive,
+                                  ),
                                 ),
                               ),
                             ),
@@ -133,21 +137,29 @@ class KindergartenListTile extends StatelessWidget {
                           ),
                           const Spacer(),
                           if (onMapView != null)
-                            GestureDetector(
-                              onTap: onMapView,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.map_outlined, size: 13, color: AppColors.primary),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    '지도',
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            Semantics(
+                              label: '지도에서 보기',
+                              button: true,
+                              child: GestureDetector(
+                                onTap: onMapView,
+                                behavior: HitTestBehavior.opaque,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.map_outlined, size: 14, color: AppColors.primary),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '지도',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                         ],

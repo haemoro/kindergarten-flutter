@@ -425,29 +425,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   ),
                 const Spacer(),
                 // 목록 보기 버튼
-                GestureDetector(
-                  onTap: () => setState(() {
-                    _showList = !_showList;
-                    _selectedMarkerNotifier.value = null;
-                  }),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _showList ? Icons.map : Icons.list,
-                      size: 20,
-                      color: AppColors.gray700,
+                Semantics(
+                  label: _showList ? '지도 보기' : '목록 보기',
+                  button: true,
+                  child: GestureDetector(
+                    onTap: () => setState(() {
+                      _showList = !_showList;
+                      _selectedMarkerNotifier.value = null;
+                    }),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _showList ? Icons.map : Icons.list,
+                        size: 20,
+                        color: AppColors.gray700,
+                      ),
                     ),
                   ),
                 ),
@@ -513,12 +517,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
 
           // 유치원 목록 패널
-          if (_showList)
-            Positioned(
-              top: safeTop + 52,
+          AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              top: _showList ? safeTop + 52 : MediaQuery.of(context).size.height,
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: _showList ? 0 : -MediaQuery.of(context).size.height,
               child: Container(
                 decoration: const BoxDecoration(
                   color: Colors.white,
