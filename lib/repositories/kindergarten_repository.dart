@@ -69,6 +69,7 @@ class KindergartenRepository {
     required double lng,
     double? radiusKm,
     String? type,
+    int? limit,
   }) async {
     try {
       final queryParameters = <String, dynamic>{
@@ -78,6 +79,7 @@ class KindergartenRepository {
 
       if (radiusKm != null) queryParameters['radiusKm'] = radiusKm;
       if (type != null && type.isNotEmpty) queryParameters['type'] = type;
+      if (limit != null) queryParameters['limit'] = limit;
 
       final response = await _dio.get(
         ApiConstants.kindergartensMapMarkers,

@@ -187,13 +187,14 @@ final kindergartenDetailProvider = FutureProvider.family<KindergartenDetail, Str
 });
 
 // 지도 마커 Provider
-final mapMarkersProvider = FutureProvider.family<List<MapMarker>, ({double lat, double lng, double? radiusKm, String? type})>((ref, params) async {
+final mapMarkersProvider = FutureProvider.family<List<MapMarker>, ({double lat, double lng, double? radiusKm, String? type, int? limit})>((ref, params) async {
   final repository = ref.read(kindergartenRepositoryProvider);
   return await repository.getMapMarkers(
     lat: params.lat,
     lng: params.lng,
     radiusKm: params.radiusKm,
     type: params.type,
+    limit: params.limit,
   );
 });
 
